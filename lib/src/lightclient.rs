@@ -38,7 +38,7 @@ use crate::ANCHOR_OFFSET;
 
 mod checkpoints;
 
-pub const DEFAULT_SERVER: &str = "https://lightwalletd.zecwallet.co:1443";
+pub const DEFAULT_SERVER: &str = "https://lightwalletd.zeromachine.io:443";
 pub const WALLET_NAME: &str    = "zecwallet-light-wallet.dat";
 pub const LOGFILE_NAME: &str   = "zecwallet-light-wallet.debug.log";
 
