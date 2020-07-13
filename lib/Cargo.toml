@@ -41,34 +41,34 @@ webpki = "0.21.0"
 webpki-roots = "0.18.0"
 
 [dependencies.bellman]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 default-features = false
 features = ["groth16"]
 
 [dependencies.pairing]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 
 [dependencies.zcash_client_backend]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 default-features = false
 
 [dependencies.zcash_primitives]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 default-features = false
 features = ["transparent-inputs"]
 
 [dependencies.zcash_proofs]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 default-features = false
 
 [dependencies.ff]
-git = "https://github.com/adityapk00/librustzcash.git"
-rev = "ff0ffc3d1b8bc36a0ad4b6b0f06aa3ca5900d3e4"
+git = "https://github.com/zerocurrencycoin/librustzcash.git"
+rev = "1ce4e97632359117f57848d64872c85d1efaece5"
 features = ["ff_derive"]
 
 [build-dependencies]
