@@ -1334,7 +1334,7 @@ impl LightClient {
         }        
     }
 
-    pub fn do_send(&self, addrs: Vec<(&str, u64, Option<String>)>) -> Result<String, String> {
+    pub fn do_send(&self, from: &str, addrs: Vec<(&str, u64, Option<String>)>) -> Result<String, String> {
         if !self.wallet.read().unwrap().is_unlocked_for_spending() {
             error!("Wallet is locked");
             return Err("Wallet is locked".to_string());
@@ -1343,10 +1343,13 @@ impl LightClient {
         info!("Creating transaction");
 
         let rawtx = self.wallet.write().unwrap().send_to_address(
-            u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(), 
+            u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
             &self.sapling_spend, &self.sapling_output,
-            addrs
+            from, addrs
         );
+
+        info!("Transaction Complete");
+
         
         match rawtx {
             Ok(txbytes)   => broadcast_raw_tx(&self.get_server_uri(), txbytes),

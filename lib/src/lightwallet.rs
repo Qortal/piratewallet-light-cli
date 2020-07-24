@@ -1679,6 +1679,7 @@ impl LightWallet {
         consensus_branch_id: u32,
         spend_params: &[u8],
         output_params: &[u8],
+        from: &str,
         tos: Vec<(&str, u64, Option<String>)>
     ) -> Result<Box<[u8]>, String> {
         if !self.unlocked {
@@ -1692,7 +1693,7 @@ impl LightWallet {
 
         let total_value = tos.iter().map(|to| to.1).sum::<u64>();
         println!(
-            "0: Creating transaction sending {} ztoshis to {} addresses",
+            "0: Creating transaction sending {} zatoshis to {} addresses",
             total_value, tos.len()
         );
 
@@ -1731,6 +1732,7 @@ impl LightWallet {
         let notes: Vec<_> = self.txs.read().unwrap().iter()
             .map(|(txid, tx)| tx.notes.iter().map(move |note| (*txid, note)))
             .flatten()
+            .filter(|(_txid, note)|LightWallet::note_address(self.config.hrp_sapling_address(), note).unwrap() == from)
             .filter_map(|(txid, note)|
                 SpendableNote::from(txid, note, anchor_offset, &self.extsks.read().unwrap()[note.account])
             )
@@ -1755,6 +1757,7 @@ impl LightWallet {
         // ZecWallet will add all your t-address funds into that transaction, and send them to your shielded
         // address as change.
         let tinputs: Vec<_> = self.get_utxos().iter()
+                                .filter(|utxo| utxo.address == from)
                                 .filter(|utxo| utxo.unconfirmed_spent.is_none()) // Remove any unconfirmed spends
                                 .map(|utxo| utxo.clone())
                                 .collect();
@@ -1820,17 +1823,43 @@ impl LightWallet {
             }
         }
 
+
+        // Use the ovk belonging to the address being sent from, if not using any notes
+        // use the first address in the wallet for the ovk.
+        let ovk = if notes.len() == 0 {
+            self.extfvks.read().unwrap()[0].fvk.ovk
+        } else {
+            ExtendedFullViewingKey::from(&notes[0].extsk).fvk.ovk
+        };
+
         // If no Sapling notes were added, add the change address manually. That is,
-        // send the change to our sapling address manually. Note that if a sapling note was spent,
-        // the builder will automatically send change to that address
-        if notes.len() == 0 {
-            builder.send_change_to(
-                ExtendedFullViewingKey::from(&self.extsks.read().unwrap()[0]).fvk.ovk,
-                self.extsks.read().unwrap()[0].default_address().unwrap().1);
+        // send the change back to the transparent address being used,
+        // the builder will automatically send change back to the sapling address if notes are used.
+        if notes.len() == 0 && selected_value - u64::from(target_value) > 0 {
+
+            println!("{}: Adding change output", now() - start_time);
+
+            let from_addr = address::RecipientAddress::from_str(from,
+                            self.config.hrp_sapling_address(),
+                            self.config.base58_pubkey_address(),
+                            self.config.base58_script_address()).unwrap();
+
+            if let Err(e) =  match from_addr {
+                address::RecipientAddress::Shielded(from_addr) => {
+                    builder.add_sapling_output(ovk, from_addr.clone(), Amount::from_u64(selected_value - u64::from(target_value)).unwrap(), None)
+                }
+                address::RecipientAddress::Transparent(from_addr) => {
+                    builder.add_transparent_output(&from_addr, Amount::from_u64(selected_value - u64::from(target_value)).unwrap())
+                }
+            } {
+                let e = format!("Error adding transparent change output: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
         }
 
-        // TODO: We're using the first ovk to encrypt outgoing Txns. Is that Ok?
-        let ovk = self.extfvks.read().unwrap()[0].fvk.ovk;
+
+
 
         for (to, value, memo) in recepients {
             // Compute memo if it exists
@@ -1845,8 +1874,8 @@ impl LightWallet {
                     Some(m) => Some(m)
                 }
             };
-            
-            println!("{}: Adding output", now() - start_time);
+
+            println!("{}: Adding outputs", now() - start_time);
 
             if let Err(e) = match to {
                 address::RecipientAddress::Shielded(to) => {

@@ -457,15 +457,12 @@ impl Command for SendCommand {
         let mut h = vec![];
         h.push("Send ZEC to a given address(es)");
         h.push("Usage:");
-        h.push("send <address> <amount in zatoshis || \"entire-verified-zbalance\"> \"optional_memo\"");
-        h.push("OR");
-        h.push("send '[{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...]'");
+        h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...]}");
         h.push("");
         h.push("NOTE: The fee required to send this transaction (currently ZEC 0.0001) is additionally detected from your balance.");
         h.push("Example:");
-        h.push("send ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d 200000 \"Hello from the command line\"");
+        h.push("send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\"}]}'");
         h.push("");
-
         h.join("\n")
     }
 
@@ -474,12 +471,11 @@ impl Command for SendCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        // Parse the args. There are two argument types.
-        // 1 - A set of 2(+1 optional) arguments for a single address send representing address, value, memo?
-        // 2 - A single argument in the form of a JSON string that is "[{address: address, value: value, memo: memo},...]"
+        // Parse the args.
+        // A single argument in the form of a JSON string that is "{input: address, output: [{address: address, value: value, memo: memo},...], fee: fee}"
 
         // 1 - Destination address. T or Z address
-        if args.len() < 1 || args.len() > 3 {
+        if args.len() != 1 {
             return self.help();
         }
 
@@ -487,77 +483,65 @@ impl Command for SendCommand {
         use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
         let fee: u64 = DEFAULT_FEE.try_into().unwrap();
 
+
         // Check for a single argument that can be parsed as JSON
-        let send_args = if args.len() == 1 {
-            let arg_list = args[0];
+        let arg_list = args[0];
 
-            let json_args = match json::parse(&arg_list) {
-                Ok(j)  => j,
-                Err(e) => {
-                    let es = format!("Couldn't understand JSON: {}", e);
-                    return format!("{}\n{}", es, self.help());
-                }
-            };
-
-            if !json_args.is_array() {
-                return format!("Couldn't parse argument as array\n{}", self.help());
+        let json_args = match json::parse(&arg_list) {
+            Ok(j)  => j,
+            Err(e) => {
+                let es = format!("Couldn't understand JSON: {}", e);
+                return format!("{}\n{}", es, self.help());
             }
-
-            let maybe_send_args = json_args.members().map( |j| {
-                if !j.has_key("address") || !j.has_key("amount") {
-                    Err(format!("Need 'address' and 'amount'\n"))
-                } else {
-                    let amount = match j["amount"].as_str() {
-                        Some("entire-verified-zbalance") => lightclient.wallet.read().unwrap().verified_zbalance(None).checked_sub(fee),
-                        _ => Some(j["amount"].as_u64().unwrap())
-                    };
-
-                    match amount {
-                        Some(amt) => Ok((j["address"].as_str().unwrap().to_string().clone(), amt, j["memo"].as_str().map(|s| s.to_string().clone()))),
-                        None => Err(format!("Not enough in wallet to pay transaction fee"))
-                    }
-                }
-            }).collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
-
-            match maybe_send_args {
-                Ok(a) => a.clone(),
-                Err(s) => { return format!("Error: {}\n{}", s, self.help()); }
-            }
-        } else if args.len() == 2 || args.len() == 3 {
-            let address = args[0].to_string();
-
-            // Make sure we can parse the amount
-            let value = match args[1].parse::<u64>() {
-                Ok(amt) => amt,
-                Err(e)  => {
-                    if args[1] == "entire-verified-zbalance" {
-                        match lightclient.wallet.read().unwrap().verified_zbalance(None).checked_sub(fee) {
-                            Some(amt) => amt,
-                            None => { return format!("Not enough in wallet to pay transaction fee") }
-                        }
-                    } else {
-                        return format!("Couldn't parse amount: {}", e);
-                    }
-                }
-            };
-
-            let memo = if args.len() == 3 { Some(args[2].to_string()) } else { None };
-
-            // Memo has to be None if not sending to a shileded address
-            if memo.is_some() && !LightWallet::is_shielded_address(&address, &lightclient.config) {
-                return format!("Can't send a memo to the non-shielded address {}", address);
-            }
-            
-            vec![(args[0].to_string(), value, memo)]
-        } else {
-            return self.help()
         };
+
+        //Check for a input key and convert to str
+        let from = if json_args.has_key("input") {
+            json_args["input"].as_str().unwrap().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need input address", self.help());
+        };
+
+        //Check for output key
+        let json_tos = if json_args.has_key("output") {
+            &json_args["output"]
+        } else {
+            return format!("Error: {}\n{}", "Need output address", self.help());
+        };
+
+        //Check output is in the form of an array
+        if !json_tos.is_array() {
+            return format!("Couldn't parse argument as array\n{}", self.help());
+        }
+
+        //Check array for manadantory address and amount keys
+        let maybe_send_args = json_tos.members().map( |j| {
+            if !j.has_key("address") || !j.has_key("amount") {
+                Err(format!("Need 'address' and 'amount'\n"))
+            } else {
+                let amount = match j["amount"].as_str() {
+                    Some("entire-verified-zbalance") => lightclient.wallet.read().unwrap().verified_zbalance(None).checked_sub(fee),
+                    _ => Some(j["amount"].as_u64().unwrap())
+                };
+
+                match amount {
+                    Some(amt) => Ok((j["address"].as_str().unwrap().to_string().clone(), amt, j["memo"].as_str().map(|s| s.to_string().clone()))),
+                    None => Err(format!("Not enough in wallet to pay transaction fee"))
+                }
+            }
+        }).collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
+
+        let send_args = match maybe_send_args {
+            Ok(a) =>  a.clone(),
+            Err(s) => { return format!("Error: {}\n{}", s, self.help()); }
+        };
+
 
         match lightclient.do_sync(true) {
             Ok(_) => {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
-                match lightclient.do_send(tos) {
+                match lightclient.do_send(from, tos) {
                     Ok(txid) => { object!{ "txid" => txid } },
                     Err(e)   => { object!{ "error" => e } }
                 }.pretty(2)
