@@ -39,8 +39,8 @@ use crate::ANCHOR_OFFSET;
 mod checkpoints;
 
 pub const DEFAULT_SERVER: &str = "https://lightwalletd.zeromachine.io:443";
-pub const WALLET_NAME: &str    = "zecwallet-light-wallet.dat";
-pub const LOGFILE_NAME: &str   = "zecwallet-light-wallet.debug.log";
+pub const WALLET_NAME: &str    = "zerowallet-light-wallet.dat";
+pub const LOGFILE_NAME: &str   = "zerowallet-light-wallet.debug.log";
 
 #[derive(Clone, Debug)]
 pub struct WalletStatus {
@@ -113,7 +113,7 @@ impl LightClientConfig {
     pub fn get_log_config(&self) -> io::Result<Config> {
         let window_size = 3; // log0, log1, log2
         let fixed_window_roller =
-            FixedWindowRoller::builder().build("zecwallet-light-wallet-log{}",window_size).unwrap();
+            FixedWindowRoller::builder().build("zerowallet-light-wallet-log{}",window_size).unwrap();
         let size_limit = 5 * 1024 * 1024; // 5MB as max log file size to roll
         let size_trigger = SizeTrigger::new(size_limit);
         let compound_policy = CompoundPolicy::new(Box::new(size_trigger),Box::new(fixed_window_roller));
@@ -146,10 +146,10 @@ impl LightClientConfig {
         } else {
             if cfg!(target_os="macos") || cfg!(target_os="windows") {
                 zcash_data_location = dirs::data_dir().expect("Couldn't determine app data directory!");
-                zcash_data_location.push("Zcash");
+                zcash_data_location.push("Zero");
             } else {
                 zcash_data_location = dirs::home_dir().expect("Couldn't determine home directory!");
-                zcash_data_location.push(".zcash");
+                zcash_data_location.push(".zero");
             };
 
             match &self.chain_name[..] {
@@ -166,8 +166,8 @@ impl LightClientConfig {
             match std::fs::create_dir_all(zcash_data_location.clone()) {
                 Ok(_) => {},
                 Err(e) => {
-                    eprintln!("Couldn't create zcash directory!\n{}", e);
-                    panic!("Couldn't create zcash directory!");
+                    eprintln!("Couldn't create zero directory!\n{}", e);
+                    panic!("Couldn't create zero directory!");
                 }
             }
         }
@@ -193,7 +193,7 @@ impl LightClientConfig {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         let mut backup_file_path = self.get_zcash_data_path().into_path_buf();
-        backup_file_path.push(&format!("zecwallet-light-wallet.backup.{}.dat", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()));
+        backup_file_path.push(&format!("zerowallet-light-wallet.backup.{}.dat", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()));
 
         let backup_file_str = backup_file_path.to_string_lossy().to_string();
         std::fs::copy(self.get_wallet_path(), backup_file_path).map_err(|e| format!("{}", e))?;
