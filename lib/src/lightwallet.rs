@@ -36,8 +36,8 @@ use zcash_primitives::{
     consensus::BranchId,
     transaction::{
         builder::{Builder},
-        components::{Amount, OutPoint, TxOut}, components::amount::DEFAULT_FEE,
-        TxId, Transaction, 
+        components::{Amount, OutPoint, TxOut}, //components::amount::DEFAULT_FEE,
+        TxId, Transaction,
     },
     sapling::Node,
     merkle_tree::{CommitmentTree, IncrementalWitness},
@@ -1680,7 +1680,8 @@ impl LightWallet {
         spend_params: &[u8],
         output_params: &[u8],
         from: &str,
-        tos: Vec<(&str, u64, Option<String>)>
+        tos: Vec<(&str, u64, Option<String>)>,
+        fee: &u64
     ) -> Result<Box<[u8]>, String> {
         if !self.unlocked {
             return Err("Cannot spend while wallet is locked".to_string());
@@ -1728,7 +1729,7 @@ impl LightWallet {
 
         // Select notes to cover the target value
         println!("{}: Selecting notes", now() - start_time);
-        let target_value = Amount::from_u64(total_value).unwrap() + DEFAULT_FEE ;
+        let target_value = Amount::from_u64(total_value).unwrap() + Amount::from_u64(*fee).unwrap() ;
         let notes: Vec<_> = self.txs.read().unwrap().iter()
             .map(|(txid, tx)| tx.notes.iter().map(move |note| (*txid, note)))
             .flatten()
@@ -1749,6 +1750,9 @@ impl LightWallet {
             .collect();
 
         let mut builder = Builder::new(height);
+
+        //set fre
+        builder.set_fee(Amount::from_u64(*fee).unwrap());
 
         // A note on t addresses
         // Funds received by t-addresses can't be explicitly spent in ZecWallet. 

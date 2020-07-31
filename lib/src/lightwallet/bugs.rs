@@ -82,7 +82,7 @@ impl BugBip39Derivation {
         let txid = if amount > 0 {
             println!("Sending funds to ourself.");
             let fee: u64 = DEFAULT_FEE.try_into().unwrap();
-            match client.do_send(client.do_address()["z_addresses"][0].as_str().unwrap(), vec![(&zaddr, amount-fee, None)]) {
+            match client.do_send(client.do_address()["z_addresses"][0].as_str().unwrap(), vec![(&zaddr, amount-fee, None)], &fee) {
                 Ok(txid) => txid,
                 Err(e) => {
                     let r = object!{

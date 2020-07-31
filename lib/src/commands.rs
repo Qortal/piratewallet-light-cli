@@ -481,8 +481,6 @@ impl Command for SendCommand {
 
         use std::convert::TryInto;
         use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
-        let fee: u64 = DEFAULT_FEE.try_into().unwrap();
-
 
         // Check for a single argument that can be parsed as JSON
         let arg_list = args[0];
@@ -493,6 +491,16 @@ impl Command for SendCommand {
                 let es = format!("Couldn't understand JSON: {}", e);
                 return format!("{}\n{}", es, self.help());
             }
+        };
+
+        //Check for a fee key and convert to u64
+        let fee: u64 = if json_args.has_key("fee") {
+            match json_args["fee"].as_u64() {
+                Some(f) => f.clone(),
+                None => DEFAULT_FEE.try_into().unwrap()
+            }
+        } else {
+            DEFAULT_FEE.try_into().unwrap()
         };
 
         //Check for a input key and convert to str
@@ -541,7 +549,7 @@ impl Command for SendCommand {
             Ok(_) => {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
-                match lightclient.do_send(from, tos) {
+                match lightclient.do_send(from, tos, &fee) {
                     Ok(txid) => { object!{ "txid" => txid } },
                     Err(e)   => { object!{ "error" => e } }
                 }.pretty(2)
