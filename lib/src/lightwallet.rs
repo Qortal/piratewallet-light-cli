@@ -1046,7 +1046,8 @@ impl LightWallet {
                 for vout in tx.vout.iter() {
                     let taddr = self.address_from_pubkeyhash(vout.script_pubkey.address());
 
-                    if taddr.is_some() && !wallet_taddrs.contains(&taddr.clone().unwrap()) {
+                    //if taddr.is_some() && !wallet_taddrs.contains(&taddr.clone().unwrap()) {
+                    if taddr.is_some() {
                         let taddr = taddr.unwrap();
 
                         // Add it to outgoing metadata
