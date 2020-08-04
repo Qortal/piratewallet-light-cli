@@ -1136,9 +1136,9 @@ impl LightWallet {
                                             &payment_address);
 
                             // Check if this is a change address
-                            if z_addresses.contains(&address) {
-                                continue;
-                            }
+                            // if z_addresses.contains(&address) {
+                            //     continue;
+                            // }
 
                             // Update the WalletTx 
                             // Do it in a short scope because of the write lock.
