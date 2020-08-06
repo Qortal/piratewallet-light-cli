@@ -387,13 +387,19 @@ pub struct WalletTx {
     // All outgoing sapling sends to addresses outside this wallet
     pub outgoing_metadata: Vec<OutgoingTxMetadata>,
 
+    // All outgoing sapling sends to addresses outside this wallet
+    pub outgoing_metadata_change: Vec<OutgoingTxMetadata>,
+
     // Whether this TxID was downloaded from the server and scanned for Memos
     pub full_tx_scanned: bool,
+
+    // Value Balance of this Tx.
+    pub value_balance : u64,
 }
 
 impl WalletTx {
     pub fn serialized_version() -> u64 {
-        return 4;
+        return 6;
     }
 
     pub fn new(height: i32, datetime: u64, txid: &TxId) -> Self {
@@ -406,7 +412,9 @@ impl WalletTx {
             total_shielded_value_spent: 0,
             total_transparent_value_spent: 0,
             outgoing_metadata: vec![],
+            outgoing_metadata_change: vec![],
             full_tx_scanned: false,
+            value_balance: 0,
         }
     }
 
@@ -436,8 +444,20 @@ impl WalletTx {
         // Outgoing metadata was only added in version 2
         let outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r))?;
 
+        let outgoing_metadata_change = if version >= 6 {
+            Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r))?
+        } else {
+            vec![]
+        };
+
         let full_tx_scanned = reader.read_u8()? > 0;
-            
+
+        let value_balance = if version >= 5 {
+            reader.read_u64::<LittleEndian>()?
+        } else {
+            0
+        };
+
         Ok(WalletTx{
             block,
             datetime,
@@ -447,7 +467,9 @@ impl WalletTx {
             total_shielded_value_spent,
             total_transparent_value_spent,
             outgoing_metadata,
-            full_tx_scanned
+            outgoing_metadata_change,
+            full_tx_scanned,
+            value_balance
         })
     }
 
@@ -469,7 +491,12 @@ impl WalletTx {
         // Write the outgoing metadata
         Vector::write(&mut writer, &self.outgoing_metadata, |w, om| om.write(w))?;
 
+        // Write the outgoing metadata_change
+        Vector::write(&mut writer, &self.outgoing_metadata_change, |w, om| om.write(w))?;
+
         writer.write_u8(if self.full_tx_scanned {1} else {0})?;
+
+        writer.write_u64::<LittleEndian>(self.value_balance)?;
 
         Ok(())
     }

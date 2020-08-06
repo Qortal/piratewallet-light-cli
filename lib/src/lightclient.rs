@@ -870,78 +870,112 @@ impl LightClient {
             .flat_map(| (_k, v) | {
                 let mut txns: Vec<JsonValue> = vec![];
 
-                if v.total_shielded_value_spent + v.total_transparent_value_spent > 0 {
-                    // If money was spent, create a transaction. For this, we'll subtract
-                    // all the change notes. TODO: Add transparent change here to subtract it also
-                    let total_change: u64 = v.notes.iter()
-                        .filter( |nd| nd.is_change )
-                        .map( |nd| nd.note.value )
-                        .sum();
+                //Get totals from outgoing metadata
+                let total_change: u64 = v.outgoing_metadata_change.iter().map(|u| u.value).sum::<u64>();
+                let total_send: u64 = v.outgoing_metadata.iter().map(|u| u.value).sum::<u64>();
 
-                    // TODO: What happens if change is > than sent ?
+                //Get Change address from outgoing change metadata
+                let change_addresses = v.outgoing_metadata_change.iter()
+                    .map(|om| om.address.clone())
+                    .collect::<Vec<String>>();
 
-                    // Collect outgoing metadata
-                    let outgoing_json = v.outgoing_metadata.iter()
-                        .map(|om| 
-                            object!{
-                                "address" => om.address.clone(),
-                                "value"   => om.value,
-                                "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
-                        })
-                        .collect::<Vec<JsonValue>>();                    
-
-                    txns.push(object! {
-                        "block_height" => v.block,
-                        "datetime"     => v.datetime,
-                        "txid"         => format!("{}", v.txid),
-                        "amount"       => total_change as i64 
-                                            - v.total_shielded_value_spent as i64 
-                                            - v.total_transparent_value_spent as i64,
-                        "outgoing_metadata" => outgoing_json,
-                    });
-                } 
-
-                // For each sapling note that is not a change, add a Tx.
-                txns.extend(v.notes.iter()
+                // Collect incoming metadata
+                let mut incoming_json = v.notes.iter()
                     .filter( |nd| !nd.is_change )
                     .enumerate()
-                    .map ( |(i, nd)| 
+                    .map ( |(_i, nd)|
                         object! {
-                            "block_height" => v.block,
-                            "datetime"     => v.datetime,
-                            "position"     => i,
-                            "txid"         => format!("{}", v.txid),
-                            "amount"       => nd.note.value as i64,
                             "address"      => LightWallet::note_address(self.config.hrp_sapling_address(), nd),
+                            "value"       => nd.note.value as i64,
                             "memo"         => LightWallet::memo_str(&nd.memo),
                     })
-                );
+                    .collect::<Vec<JsonValue>>();
 
-                // Get the total transparent received
-                let total_transparent_received = v.utxos.iter().map(|u| u.value).sum::<u64>();
-                if total_transparent_received > v.total_transparent_value_spent {
-                    // Create an input transaction for the transparent value as well.
-                    txns.push(object!{
-                        "block_height" => v.block,
-                        "datetime"     => v.datetime,
-                        "txid"         => format!("{}", v.txid),
-                        "amount"       => total_transparent_received as i64 - v.total_transparent_value_spent as i64,
-                        "address"      => v.utxos.iter().map(|u| u.address.clone()).collect::<Vec<String>>().join(","),
-                        "memo"         => None::<String>
-                    })
+                let incoming_t_json = v.utxos.iter()
+                    .filter(|u| !change_addresses.contains(&u.address))
+                    .map( |uo|
+                        object! {
+                            "address"       => uo.address.clone(),
+                            "value"         => uo.value.clone() as i64,
+                            "memo"          => None::<String>,
+                        })
+                    .collect::<Vec<JsonValue>>();
+
+                for json in incoming_t_json {
+                    incoming_json.push(json.clone());
                 }
 
-                txns
-            })
-            .collect::<Vec<JsonValue>>();
+                // Collect incoming metadata change
+                let mut incoming_change_json = v.notes.iter()
+                    .filter( |nd| nd.is_change )
+                    .enumerate()
+                    .map ( |(_i, nd)|
+                        object! {
+                            "address"      => LightWallet::note_address(self.config.hrp_sapling_address(), nd),
+                            "value"       => nd.note.value as i64,
+                            "memo"         => LightWallet::memo_str(&nd.memo),
+                    })
+                    .collect::<Vec<JsonValue>>();
+
+                let incoming_t_change_json = v.utxos.iter()
+                    .filter(|u| change_addresses.contains(&u.address))
+                    .map( |uo|
+                        object! {
+                            "address"       => uo.address.clone(),
+                            "value"         => uo.value.clone() as i64,
+                            "memo"          => None::<String>,
+                        })
+                    .collect::<Vec<JsonValue>>();
+
+                for json in incoming_t_change_json {
+                    incoming_change_json.push(json.clone());
+                }
+
+                // Collect outgoing metadata
+                let outgoing_json = v.outgoing_metadata.iter()
+                    .map(|om|
+                        object!{
+                            "address" => om.address.clone(),
+                            "value"   => om.value,
+                            "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                    })
+                    .collect::<Vec<JsonValue>>();
+
+                // Collect outgoing metadata change
+                let outgoing_change_json = v.outgoing_metadata_change.iter()
+                    .map(|om|
+                        object!{
+                            "address" => om.address.clone(),
+                            "value"   => om.value,
+                            "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                    })
+                    .collect::<Vec<JsonValue>>();
+
+                txns.push(object! {
+                    "block_height" => v.block,
+                    "datetime"     => v.datetime,
+                    "txid"         => format!("{}", v.txid),
+                    "amount"       => total_change as i64
+                                        - v.total_shielded_value_spent as i64
+                                        - v.total_transparent_value_spent as i64,
+                    "fee"          => v.total_shielded_value_spent as i64
+                                        + v.total_transparent_value_spent as i64
+                                        - total_change as i64
+                                        - total_send as i64,
+                    "incoming_metadata" => incoming_json,
+                    "incoming_metadata_change" => incoming_change_json,
+                    "outgoing_metadata" => outgoing_json,
+                    "outgoing_metadata_change" => outgoing_change_json,
+
+                });
+            txns
+        })
+        .collect::<Vec<JsonValue>>();
 
         // Add in all mempool txns
         tx_list.extend(wallet.mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
-            use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
-            use std::convert::TryInto;
-            
             let amount: u64 = wtx.outgoing_metadata.iter().map(|om| om.value).sum::<u64>();
-            let fee: u64 = DEFAULT_FEE.try_into().unwrap();
+            let fee: u64 = wtx.total_shielded_value_spent - amount;
 
             // Collect outgoing metadata
             let outgoing_json = wtx.outgoing_metadata.iter()
@@ -957,6 +991,7 @@ impl LightClient {
                 "datetime"     => wtx.datetime,
                 "txid"         => format!("{}", wtx.txid),
                 "amount"       => -1 * (fee + amount) as i64,
+                "fee"          => fee as i64,
                 "unconfirmed"  => true,
                 "outgoing_metadata" => outgoing_json,
             }
@@ -1349,6 +1384,7 @@ impl LightClient {
         );
 
         info!("Transaction Complete");
+
 
 
         match rawtx {

@@ -971,13 +971,24 @@ impl LightWallet {
     pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
         let mut total_transparent_spend: u64 = 0;
 
+        //Get Value Balance
+        {
+            let mut txs = self.txs.write().unwrap();
+            match txs.get_mut(&tx.txid()) {
+                Some(wtx) => wtx.value_balance = tx.value_balance.into(),
+                None => {},
+            };
+        }
+
+
         // Scan all the inputs to see if we spent any transparent funds in this tx
-        for vin in tx.vin.iter() {    
+        let mut tinputs = Vec::new();
+
+        for vin in tx.vin.iter() {
             // Find the txid in the list of utxos that we have.
             let txid = TxId {0: vin.prevout.hash};
             match self.txs.write().unwrap().get_mut(&txid) {
                 Some(wtx) => {
-                    //println!("Looking for {}, {}", txid, vin.prevout.n);
 
                     // One of the tx outputs is a match
                     let spent_utxo = wtx.utxos.iter_mut()
@@ -988,6 +999,7 @@ impl LightWallet {
                             info!("Spent utxo from {} was spent in {}", txid, tx.txid());
                             su.spent = Some(tx.txid().clone());
                             su.unconfirmed_spent = None;
+                            tinputs.push(su.address.clone());
 
                             total_transparent_spend += su.value;
                         },
@@ -1032,42 +1044,26 @@ impl LightWallet {
             }
         }
 
+
+        let mut outgoing = Vec::new();
+        let mut outgoing_change = Vec::new();
         {
             let total_shielded_value_spent = self.txs.read().unwrap().get(&tx.txid()).map_or(0, |wtx| wtx.total_shielded_value_spent);
             if total_transparent_spend + total_shielded_value_spent > 0 {
                 // We spent money in this Tx, so grab all the transparent outputs (except ours) and add them to the
                 // outgoing metadata
 
-                // Collect our t-addresses
-                let wallet_taddrs = self.taddresses.read().unwrap().iter()
-                        .map(|a| a.clone())
-                        .collect::<HashSet<String>>();
-
                 for vout in tx.vout.iter() {
                     let taddr = self.address_from_pubkeyhash(vout.script_pubkey.address());
 
-                    //if taddr.is_some() && !wallet_taddrs.contains(&taddr.clone().unwrap()) {
                     if taddr.is_some() {
                         let taddr = taddr.unwrap();
 
-                        // Add it to outgoing metadata
-                        let mut txs = self.txs.write().unwrap();
-                        if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
-                            .find(|om|
-                                om.address == taddr && Amount::from_u64(om.value).unwrap() == vout.value)
-                            .is_some() {
-                            warn!("Duplicate outgoing metadata");
-                            continue;
+                        if tinputs.contains(&taddr) {
+                            outgoing_change.push((taddr, vout.value.into(), Memo::default()));
+                        } else {
+                            outgoing.push((taddr, vout.value.into(), Memo::default()));
                         }
-
-                        // Write the outgoing metadata
-                        txs.get_mut(&tx.txid()).unwrap()
-                            .outgoing_metadata
-                            .push(OutgoingTxMetadata{
-                                address: taddr,
-                                value: vout.value.into(),
-                                memo: Memo::default(),
-                            });
                     }
                 }
             }
@@ -1115,10 +1111,49 @@ impl LightWallet {
             // the memo and value for our records
 
             // First, collect all our z addresses, to check for change
-            // Collect z addresses
-            let z_addresses = self.zaddress.read().unwrap().iter().map( |ad| {
-                encode_payment_address(self.config.hrp_sapling_address(), &ad)
-            }).collect::<HashSet<String>>();
+            // Collect z addresses spent from
+
+            let mut zinputs = Vec::new();
+            {
+
+                let mut txs = self.txs.write().unwrap();
+                let nfs: Vec<_>;
+
+                nfs = txs
+                    .iter()
+                    .map(|(txid, tx)| {
+                        let txid = *txid;
+                        tx.notes.iter().filter_map(move |nd| {
+                            Some((nd.nullifier, nd.account, txid))
+                        })
+                    })
+                    .flatten()
+                    .collect();
+
+                for spend in &tx.shielded_spends {
+                    let txid = nfs
+                        .iter()
+                        .find(|(nf, _, _)| &nf[..] == &spend.nullifier[..])
+                        .unwrap()
+                        .2;
+                    let spent_note = txs
+                        .get_mut(&txid)
+                        .unwrap()
+                        .notes
+                        .iter_mut()
+                        .find(|nd| &nd.nullifier[..] == &spend.nullifier[..])
+                        .unwrap();
+
+                    zinputs.push(encode_payment_address(
+                                        self.config.hrp_sapling_address(),
+                                        &spent_note.extfvk.fvk.vk
+                                            .to_payment_address(spent_note.diversifier, &JUBJUB).unwrap()));
+
+                }
+
+            }
+
+
 
             // Search all ovks that we have
             let ovks: Vec<_> = self.extfvks.read().unwrap().iter().map(
@@ -1137,33 +1172,56 @@ impl LightWallet {
                                             &payment_address);
 
                             // Check if this is a change address
-                            // if z_addresses.contains(&address) {
-                            //     continue;
-                            // }
-
-                            // Update the WalletTx 
-                            // Do it in a short scope because of the write lock.
-                            {
-                                info!("A sapling output was sent in {}", tx.txid());
-
-                                let mut txs = self.txs.write().unwrap();
-                                if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
-                                        .find(|om| om.address == address && om.value == note.value && om.memo == memo)
-                                        .is_some() {
-                                    warn!("Duplicate outgoing metadata");
-                                    continue;
-                                }
-                                
-                                // Write the outgoing metadata
-                                txs.get_mut(&tx.txid()).unwrap()
-                                    .outgoing_metadata
-                                    .push(OutgoingTxMetadata{
-                                        address, value: note.value, memo,
-                                    });
+                            if zinputs.contains(&address) {
+                                outgoing_change.push((address, note.value, memo));
+                            } else {
+                                outgoing.push((address, note.value, memo));
                             }
                         },
                         None => {}
                 };
+            }
+
+
+            {
+                // Update the WalletTx
+                // Do it in a short scope because of the write lock.
+                // Write the outgoing metadata
+                for metadata in outgoing.iter().enumerate() {
+
+                    let mut txs = self.txs.write().unwrap();
+                    if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
+                            .find(|om| om.address == (metadata.1).0 && om.value == (metadata.1).1 && om.memo == (metadata.1).2)
+                            .is_some() {
+                        warn!("Duplicate outgoing metadata");
+                        continue;
+                    }
+
+                    txs.get_mut(&tx.txid()).unwrap()
+                        .outgoing_metadata
+                        .push(OutgoingTxMetadata{
+                            address: (metadata.1).0.clone(),
+                            value: (metadata.1).1.clone(),
+                            memo: (metadata.1).2.clone()});
+                }
+
+                for metadata in outgoing_change.iter().enumerate() {
+
+                    let mut txs = self.txs.write().unwrap();
+                    if txs.get(&tx.txid()).unwrap().outgoing_metadata_change.iter()
+                            .find(|om| om.address == (metadata.1).0 && om.value == (metadata.1).1 && om.memo == (metadata.1).2)
+                            .is_some() {
+                        warn!("Duplicate outgoing metadata change");
+                        continue;
+                    }
+
+                    txs.get_mut(&tx.txid()).unwrap()
+                        .outgoing_metadata_change
+                        .push(OutgoingTxMetadata{
+                            address: (metadata.1).0.clone(),
+                            value: (metadata.1).1.clone(),
+                            memo: (metadata.1).2.clone()});
+                }
             }
         }
 
@@ -1912,6 +1970,8 @@ impl LightWallet {
         println!("{}: Transaction created", now() - start_time);
         println!("Transaction ID: {}", tx.txid());
 
+
+
         // Mark notes as spent.
         {
             // Mark sapling notes as unconfirmed spent
@@ -1961,6 +2021,7 @@ impl LightWallet {
                     // Create a new WalletTx
                     let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
                     wtx.outgoing_metadata = outgoing_metadata;
+                    wtx.total_shielded_value_spent = total_value + fee;
 
                     // Add it into the mempool
                     mempool_txs.insert(tx.txid(), wtx);
