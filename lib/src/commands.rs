@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use json::{object};
 
 use crate::lightclient::LightClient;
-use crate::lightwallet::LightWallet;
 
 pub trait Command {
     fn help(&self) -> String;
