@@ -79,7 +79,7 @@ impl Command for SyncStatusCommand {
             false => object!{ "syncing" => "false" },
             true  => object!{ "syncing" => "true",
                               "synced_blocks" => status.synced_blocks,
-                              "total_blocks" => status.total_blocks } 
+                              "total_blocks" => status.total_blocks }
         }.pretty(2)
     }
 }
@@ -120,7 +120,7 @@ impl Command for ClearCommand {
         h.push("clear");
         h.push("");
         h.push("This command will clear all notes, utxos and transactions from the wallet, setting up the wallet to be synced from scratch.");
-        
+
         h.join("\n")
     }
 
@@ -130,9 +130,9 @@ impl Command for ClearCommand {
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
        lightclient.clear_state();
-       
+
        let result = object!{ "result" => "success" };
-       
+
        result.pretty(2)
     }
 }
@@ -197,7 +197,7 @@ impl Command for InfoCommand {
         "Get the lightwalletd server's info".to_string()
     }
 
-    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {        
+    fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
         lightclient.do_info()
     }
 }
@@ -436,7 +436,7 @@ impl Command for LockCommand {
             let mut h = vec![];
             h.push("Extra arguments to lock. Did you mean 'encrypt'?");
             h.push("");
-            
+
             return format!("{}\n{}", h.join("\n"), self.help());
         }
 
@@ -584,9 +584,9 @@ impl Command for SaveCommand {
                 r.pretty(2)
             },
             Err(e) => {
-                let r = object!{ 
+                let r = object!{
                     "result" => "error",
-                    "error" => e 
+                    "error" => e
                 };
                 r.pretty(2)
             }
@@ -715,7 +715,7 @@ impl Command for NotesCommand {
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
-        // Parse the args. 
+        // Parse the args.
         if args.len() > 1 {
             return self.short_help();
         }
@@ -843,6 +843,6 @@ pub mod tests {
 
     #[test]
     pub fn test_nosync_commands() {
-        // The following commands should run 
+        // The following commands should run
     }
 }

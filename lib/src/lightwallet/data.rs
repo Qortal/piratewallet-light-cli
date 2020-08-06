@@ -10,7 +10,7 @@ use zcash_primitives::{
     sapling::Node,
     serialize::{Vector, Optional},
     transaction::{
-        components::{OutPoint}, 
+        components::{OutPoint},
         TxId,
     },
     note_encryption::{Memo,},

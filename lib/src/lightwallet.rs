@@ -99,16 +99,16 @@ impl ToBase58Check for [u8] {
 }
 
 pub struct LightWallet {
-    // Is the wallet encrypted? If it is, then when writing to disk, the seed is always encrypted 
-    // and the individual spending keys are not written    
-    encrypted: bool,       
+    // Is the wallet encrypted? If it is, then when writing to disk, the seed is always encrypted
+    // and the individual spending keys are not written
+    encrypted: bool,
 
     // In memory only (i.e, this field is not written to disk). Is the wallet unlocked and are
     // the spending keys present to allow spending from this wallet?
     unlocked: bool,
 
     enc_seed: [u8; 48], // If locked, this contains the encrypted seed
-    nonce: Vec<u8>,     // Nonce used to encrypt the wallet. 
+    nonce: Vec<u8>,     // Nonce used to encrypt the wallet.
 
     seed: [u8; 32],    // Seed phrase for this wallet. If wallet is locked, this is 0
 
@@ -118,17 +118,17 @@ pub struct LightWallet {
     extfvks: Arc<RwLock<Vec<ExtendedFullViewingKey>>>,
 
     pub zaddress: Arc<RwLock<Vec<PaymentAddress<Bls12>>>>,
-    
+
     // Transparent keys. If the wallet is locked, then the secret keys will be encrypted,
-    // but the addresses will be present. 
+    // but the addresses will be present.
     tkeys: Arc<RwLock<Vec<secp256k1::SecretKey>>>,
     pub taddresses: Arc<RwLock<Vec<String>>>,
 
     blocks: Arc<RwLock<Vec<BlockData>>>,
     pub txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
 
-    // Transactions that are only in the mempool, but haven't been confirmed yet. 
-    // This is not stored to disk. 
+    // Transactions that are only in the mempool, but haven't been confirmed yet.
+    // This is not stored to disk.
     pub mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
 
     // The block at which this wallet was born. Rescans
@@ -163,7 +163,7 @@ impl LightWallet {
     fn get_zaddr_from_bip39seed(config: &LightClientConfig, bip39_seed: &[u8], pos: u32) ->
             (ExtendedSpendingKey, ExtendedFullViewingKey, PaymentAddress<Bls12>) {
         assert_eq!(bip39_seed.len(), 64);
-        
+
         let extsk: ExtendedSpendingKey = ExtendedSpendingKey::from_path(
             &ExtendedSpendingKey::master(bip39_seed),
             &[
@@ -180,12 +180,12 @@ impl LightWallet {
 
     pub fn is_shielded_address(addr: &String, config: &LightClientConfig) -> bool {
         match address::RecipientAddress::from_str(addr,
-                config.hrp_sapling_address(), 
-                config.base58_pubkey_address(), 
+                config.hrp_sapling_address(),
+                config.base58_pubkey_address(),
                 config.base58_script_address()) {
             Some(address::RecipientAddress::Shielded(_)) => true,
             _ => false,
-        }                                    
+        }
     }
 
     pub fn new(seed_phrase: Option<String>, config: &LightClientConfig, latest_block: u64) -> io::Result<Self> {
@@ -193,7 +193,7 @@ impl LightWallet {
         let mut seed_bytes = [0u8; 32];
 
         if seed_phrase.is_none() {
-            // Create a random seed. 
+            // Create a random seed.
             let mut system_rng = OsRng;
             system_rng.fill(&mut seed_bytes);
         } else {
@@ -205,11 +205,11 @@ impl LightWallet {
                     return Err(io::Error::new(ErrorKind::InvalidData, e));
                 }
             };
-            
+
             seed_bytes.copy_from_slice(&phrase.entropy());
         }
 
-        // The seed bytes is the raw entropy. To pass it to HD wallet generation, 
+        // The seed bytes is the raw entropy. To pass it to HD wallet generation,
         // we need to get the 64 byte bip39 entropy
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed_bytes, Language::English).unwrap(), "");
 
@@ -217,7 +217,7 @@ impl LightWallet {
         let tpk = LightWallet::get_taddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
         let taddr = LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), &tpk);
 
-        // TODO: We need to monitor addresses, and always keep 1 "free" address, so 
+        // TODO: We need to monitor addresses, and always keep 1 "free" address, so
         // users can import a seed phrase and automatically get all used addresses
         let (extsk, extfvk, address)
             = LightWallet::get_zaddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
@@ -262,7 +262,7 @@ impl LightWallet {
 
         println!("Reading wallet version {}", version);
         info!("Reading wallet version {}", version);
-        
+
         // At version 5, we're writing the rest of the file as a compressed stream (gzip)
         let mut reader: Box<dyn Read> = if version != 5 {
             info!("Reading direct");
@@ -278,12 +278,12 @@ impl LightWallet {
             false
         };
         info!("Wallet Encryption {:?}", encrypted);
-        
+
         let mut enc_seed = [0u8; 48];
         if version >= 4 {
             reader.read_exact(&mut enc_seed)?;
         }
-        
+
         let nonce = if version >= 4 {
             Vector::read(&mut reader, |r| r.read_u8())?
         } else {
@@ -293,10 +293,10 @@ impl LightWallet {
         // Seed
         let mut seed_bytes = [0u8; 32];
         reader.read_exact(&mut seed_bytes)?;
-        
+
         // Read the spending keys
         let extsks = Vector::read(&mut reader, |r| ExtendedSpendingKey::read(r))?;
-        
+
         let extfvks = if version >= 4 {
             // Read the viewing keys
             Vector::read(&mut reader, |r| ExtendedFullViewingKey::read(r))?
@@ -305,7 +305,7 @@ impl LightWallet {
             extsks.iter().map(|sk| ExtendedFullViewingKey::from(sk))
                 .collect::<Vec<ExtendedFullViewingKey>>()
         };
-        
+
         // Calculate the addresses
         let addresses = extfvks.iter().map( |fvk| fvk.default_address().unwrap().1 )
             .collect::<Vec<PaymentAddress<Bls12>>>();
@@ -314,8 +314,8 @@ impl LightWallet {
             let mut tpk_bytes = [0u8; 32];
             r.read_exact(&mut tpk_bytes)?;
             secp256k1::SecretKey::from_slice(&tpk_bytes).map_err(|e| io::Error::new(ErrorKind::InvalidData, e))
-        })?;      
-        
+        })?;
+
         let taddresses = if version >= 4 {
             // Read the addresses
             Vector::read(&mut reader, |r| utils::read_string(r))?
@@ -323,9 +323,9 @@ impl LightWallet {
             // Calculate the addresses
             tkeys.iter().map(|sk| LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), sk)).collect()
         };
-        
+
         let blocks = Vector::read(&mut reader, |r| BlockData::read(r))?;
-        
+
         let txs_tuples = Vector::read(&mut reader, |r| {
             let mut txid_bytes = [0u8; 32];
             r.read_exact(&mut txid_bytes)?;
@@ -345,7 +345,7 @@ impl LightWallet {
 
         Ok(LightWallet{
             encrypted:   encrypted,
-            unlocked:    !encrypted, // When reading from disk, if wallet is encrypted, it starts off locked. 
+            unlocked:    !encrypted, // When reading from disk, if wallet is encrypted, it starts off locked.
             enc_seed:    enc_seed,
             nonce:       nonce,
             seed:        seed_bytes,
@@ -365,7 +365,7 @@ impl LightWallet {
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         if self.encrypted && self.unlocked {
-            return Err(Error::new(ErrorKind::InvalidInput, 
+            return Err(Error::new(ErrorKind::InvalidInput,
                         format!("Cannot write while wallet is unlocked while encrypted.")));
         }
 
@@ -408,7 +408,7 @@ impl LightWallet {
         )?;
 
         Vector::write(&mut writer, &self.blocks.read().unwrap(), |w, b| b.write(w))?;
-                
+
         // The hashmap, write as a set of tuples. Store them sorted so that wallets are
         // deterministically saved
         {
@@ -471,7 +471,7 @@ impl LightWallet {
     /// Get all t-address private keys. Returns a Vector of (address, secretkey)
     pub fn get_t_secret_keys(&self) -> Vec<(String, String)> {
         self.tkeys.read().unwrap().iter().map(|sk| {
-            (self.address_from_sk(sk), 
+            (self.address_from_sk(sk),
              sk[..].to_base58check(&self.config.base58_secretkey_prefix(), &[0x01]))
         }).collect::<Vec<(String, String)>>()
     }
@@ -508,7 +508,7 @@ impl LightWallet {
 
         let pos = self.tkeys.read().unwrap().len() as u32;
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&self.seed, Language::English).unwrap(), "");
-        
+
         let sk = LightWallet::get_taddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos);
         let address = self.address_from_sk(&sk);
 
@@ -637,7 +637,7 @@ impl LightWallet {
     pub fn address_from_sk(&self, sk: &secp256k1::SecretKey) -> String {
         LightWallet::address_from_prefix_sk(&self.config.base58_pubkey_address(), sk)
     }
-    
+
     pub fn address_from_pubkeyhash(&self, ta: Option<TransparentAddress>) -> Option<String> {
         match ta {
             Some(TransparentAddress::PublicKey(hash)) => {
@@ -655,7 +655,7 @@ impl LightWallet {
             return "".to_string();
         }
 
-        Mnemonic::from_entropy(&self.seed, 
+        Mnemonic::from_entropy(&self.seed,
                                 Language::English,
         ).unwrap().phrase().to_string()
     }
@@ -672,7 +672,7 @@ impl LightWallet {
         let nonce = secretbox::gen_nonce();
 
         let cipher = secretbox::seal(&self.seed, &nonce, &key);
-        
+
         self.enc_seed.copy_from_slice(&cipher);
         self.nonce = vec![];
         self.nonce.extend_from_slice(nonce.as_ref());
@@ -725,7 +725,7 @@ impl LightWallet {
         // Now that we have the seed, we'll generate the extsks and tkeys, and verify the fvks and addresses
         // respectively match
 
-        // The seed bytes is the raw entropy. To pass it to HD wallet generation, 
+        // The seed bytes is the raw entropy. To pass it to HD wallet generation,
         // we need to get the 64 byte bip39 entropy
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed, Language::English).unwrap(), "");
 
@@ -736,12 +736,12 @@ impl LightWallet {
                 LightWallet::get_zaddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos as u32);
 
             if address != self.zaddress.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData, 
+                return Err(io::Error::new(ErrorKind::InvalidData,
                         format!("zaddress mismatch at {}. {:?} vs {:?}", pos, address, self.zaddress.read().unwrap()[pos])));
             }
 
             if extfvk != self.extfvks.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData, 
+                return Err(io::Error::new(ErrorKind::InvalidData,
                             format!("fvk mismatch at {}. {:?} vs {:?}", pos, extfvk, self.extfvks.read().unwrap()[pos])));
             }
 
@@ -756,7 +756,7 @@ impl LightWallet {
             let address = self.address_from_sk(&sk);
 
             if address != self.taddresses.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData, 
+                return Err(io::Error::new(ErrorKind::InvalidData,
                     format!("taddress mismatch at {}. {} vs {}", pos, address, self.taddresses.read().unwrap()[pos])));
             }
 
@@ -767,7 +767,7 @@ impl LightWallet {
         self.extsks = Arc::new(RwLock::new(extsks));
         self.tkeys = Arc::new(RwLock::new(tkeys));
         self.seed.copy_from_slice(&seed);
-                
+
         self.encrypted = true;
         self.unlocked = true;
 
@@ -776,7 +776,7 @@ impl LightWallet {
 
     // Removing encryption means unlocking it and setting the self.encrypted = false,
     // permanantly removing the encryption
-    pub fn remove_encryption(&mut self, passwd: String) -> io::Result<()> {        
+    pub fn remove_encryption(&mut self, passwd: String) -> io::Result<()> {
         if !self.encrypted {
             return Err(Error::new(ErrorKind::AlreadyExists, "Wallet is not encrypted"));
         }
@@ -785,7 +785,7 @@ impl LightWallet {
         if !self.unlocked {
             self.unlock(passwd)?;
         }
-        
+
         // Permanantly remove the encryption
         self.encrypted = false;
         self.nonce = vec![];
@@ -807,7 +807,7 @@ impl LightWallet {
             .values()
             .map(|tx| {
                 tx.notes.iter()
-                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
+                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it.
                         match addr.clone() {
                             Some(a) => a == encode_payment_address(
                                                 self.config.hrp_sapling_address(),
@@ -861,7 +861,7 @@ impl LightWallet {
                 if tx.block as u32 <= anchor_height {
                     tx.notes
                         .iter()
-                        .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
+                        .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it.
                             match addr.clone() {
                                 Some(a) => a == encode_payment_address(
                                                     self.config.hrp_sapling_address(),
@@ -894,7 +894,7 @@ impl LightWallet {
         match tx_entry.utxos.iter().find(|utxo| {
             utxo.txid == *txid && utxo.output_index == n && Amount::from_u64(utxo.value).unwrap() == vout.value
         }) {
-            Some(utxo) => { 
+            Some(utxo) => {
                 info!("Already have {}:{}", utxo.txid, utxo.output_index);
             }
             None => {
@@ -919,14 +919,14 @@ impl LightWallet {
         }
     }
 
-    // If one of the last 'n' taddress was used, ensure we add the next HD taddress to the wallet. 
-    pub fn ensure_hd_taddresses(&self, address: &String) {        
+    // If one of the last 'n' taddress was used, ensure we add the next HD taddress to the wallet.
+    pub fn ensure_hd_taddresses(&self, address: &String) {
         let last_addresses = {
             self.taddresses.read().unwrap().iter().rev().take(GAP_RULE_UNUSED_ADDRESSES).map(|s| s.clone()).collect::<Vec<String>>()
         };
-        
+
         match last_addresses.iter().position(|s| *s == *address) {
-            None => {                
+            None => {
                 return;
             },
             Some(pos) => {
@@ -935,7 +935,7 @@ impl LightWallet {
                 for _ in 0..(GAP_RULE_UNUSED_ADDRESSES - pos) {
                     // If the wallet is locked, this is a no-op. That is fine, since we really
                     // need to only add new addresses when restoring a new wallet, when it will not be locked.
-                    // Also, if it is locked, the user can't create new addresses anyway. 
+                    // Also, if it is locked, the user can't create new addresses anyway.
                     self.add_taddr();
                 }
             }
@@ -949,7 +949,7 @@ impl LightWallet {
                 .map(|s| encode_payment_address(self.config.hrp_sapling_address(), s))
                 .collect::<Vec<String>>()
         };
-        
+
         match last_addresses.iter().position(|s| *s == *address) {
             None => {
                 return;
@@ -960,7 +960,7 @@ impl LightWallet {
                 for _ in 0..(GAP_RULE_UNUSED_ADDRESSES - pos) {
                     // If the wallet is locked, this is a no-op. That is fine, since we really
                     // need to only add new addresses when restoring a new wallet, when it will not be locked.
-                    // Also, if it is locked, the user can't create new addresses anyway. 
+                    // Also, if it is locked, the user can't create new addresses anyway.
                     self.add_zaddr();
                 }
             }
@@ -1006,7 +1006,7 @@ impl LightWallet {
                 let tx_entry = WalletTx::new(height, datetime, &tx.txid());
                 txs.insert(tx.txid().clone(), tx_entry);
             }
-            
+
             txs.get_mut(&tx.txid()).unwrap()
                 .total_transparent_value_spent = total_transparent_spend;
         }
@@ -1093,11 +1093,11 @@ impl LightWallet {
 
                 {
                     info!("A sapling note was sent in {}, getting memo", tx.txid());
-                    
-                    // Do it in a short scope because of the write lock.   
+
+                    // Do it in a short scope because of the write lock.
                     let mut txs = self.txs.write().unwrap();
 
-                    // Update memo if we have this Tx. 
+                    // Update memo if we have this Tx.
                     match txs.get_mut(&tx.txid())
                         .and_then(|t| {
                             t.notes.iter_mut().find(|nd| nd.note == note)
@@ -1127,13 +1127,13 @@ impl LightWallet {
 
             for (_account, ovk) in ovks.iter().enumerate() {
                 match try_sapling_output_recovery(ovk,
-                    &output.cv, 
-                    &output.cmu, 
-                    &output.ephemeral_key.as_prime_order(&JUBJUB).unwrap(), 
+                    &output.cv,
+                    &output.cmu,
+                    &output.ephemeral_key.as_prime_order(&JUBJUB).unwrap(),
                     &output.enc_ciphertext,
                     &output.out_ciphertext) {
                         Some((note, payment_address, memo)) => {
-                            let address = encode_payment_address(self.config.hrp_sapling_address(), 
+                            let address = encode_payment_address(self.config.hrp_sapling_address(),
                                             &payment_address);
 
                             // Check if this is a change address
@@ -1183,9 +1183,9 @@ impl LightWallet {
         let mut num_invalidated = 0;
 
         // First remove the blocks
-        { 
+        {
             let mut blks = self.blocks.write().unwrap();
-            
+
             while blks.last().unwrap().height >= at_height {
                 blks.pop();
                 num_invalidated += 1;
@@ -1232,7 +1232,7 @@ impl LightWallet {
                 }
             }
         }
-        
+
         num_invalidated as u64
     }
 
@@ -1275,7 +1275,7 @@ impl LightWallet {
                         tx.send(Some(None))
                     }
                 };
-                
+
                 match r {
                     Ok(_) => {},
                     Err(e) => println!("Send error {:?}", e)
@@ -1301,7 +1301,7 @@ impl LightWallet {
         for _i in 0..ivks.len() {
             let n = rx.recv().unwrap();
             let epk = epk.clone();
-            
+
             let wso = match n {
                 None => panic!("Got a none!"),
                 Some(None) => None,
@@ -1313,7 +1313,7 @@ impl LightWallet {
                     // - Notes created by consolidation transactions.
                     // - Notes sent from one account to itself.
                     //let is_change = spent_from_accounts.contains(&account);
-                    
+
                     Some(WalletShieldedOutput {
                         index, cmu, epk, account, note, to, is_change: false,
                         witness: IncrementalWitness::from_tree(tree),
@@ -1322,7 +1322,7 @@ impl LightWallet {
             };
             wsos.push(wso);
         }
-        
+
         match wsos.into_iter().find(|wso| wso.is_some()) {
             Some(Some(wso)) => Some(wso),
             _ => None
@@ -1513,12 +1513,12 @@ impl LightWallet {
                 .map(|block| block.tree.clone())
                 .unwrap_or(CommitmentTree::new()),
         };
-        
+
         // These are filled in inside the block
         let new_txs;
         let nfs: Vec<_>;
         {
-            // Create a write lock 
+            // Create a write lock
             let mut txs = self.txs.write().unwrap();
 
             // Create a Vec containing all unspent nullifiers.
@@ -1574,8 +1574,8 @@ impl LightWallet {
                 )
             };
         }
-        
-        // If this block had any new Txs, return the list of ALL txids in this block, 
+
+        // If this block had any new Txs, return the list of ALL txids in this block,
         // so the wallet can fetch them all as a decoy.
         let all_txs = if !new_txs.is_empty() {
             block.vtx.iter().map(|vtx| {
@@ -1588,7 +1588,7 @@ impl LightWallet {
         };
 
         for tx in new_txs {
-            // Create a write lock 
+            // Create a write lock
             let mut txs = self.txs.write().unwrap();
 
             // Mark notes as spent.
@@ -1596,7 +1596,7 @@ impl LightWallet {
 
             info!("Txid {} belongs to wallet", tx.txid);
 
-            for spend in &tx.shielded_spends {                
+            for spend in &tx.shielded_spends {
                 let txid = nfs
                     .iter()
                     .find(|(nf, _, _)| &nf[..] == &spend.nf[..])
@@ -1609,7 +1609,7 @@ impl LightWallet {
                     .iter_mut()
                     .find(|nd| &nd.nullifier[..] == &spend.nf[..])
                     .unwrap();
-                
+
                 // Mark the note as spent, and remove the unconfirmed part of it
                 info!("Marked a note as spent");
                 spent_note.spent = Some(tx.txid);
@@ -1641,13 +1641,13 @@ impl LightWallet {
                 match tx_entry.notes.iter().find(|nd| nd.nullifier == new_note.nullifier) {
                     None => tx_entry.notes.push(new_note),
                     Some(_) => warn!("Tried to insert duplicate note for Tx {}", tx.txid)
-                };                
+                };
             }
         }
 
         {
             let mut blks = self.blocks.write().unwrap();
-            
+
             // Store scanned data for this block.
             blks.push(block_data);
 
@@ -1658,7 +1658,7 @@ impl LightWallet {
                 blks.drain(..drain_first);
             }
         }
-        
+
         {
             // Cleanup mempool tx after adding a block, to remove all txns that got mined
             self.cleanup_mempool();
@@ -1701,9 +1701,9 @@ impl LightWallet {
 
         // Convert address (str) to RecepientAddress and value to Amount
         let recepients = tos.iter().map(|to| {
-            let ra = match address::RecipientAddress::from_str(to.0, 
-                            self.config.hrp_sapling_address(), 
-                            self.config.base58_pubkey_address(), 
+            let ra = match address::RecipientAddress::from_str(to.0,
+                            self.config.hrp_sapling_address(),
+                            self.config.base58_pubkey_address(),
                             self.config.base58_script_address()) {
                 Some(to) => to,
                 None => {
@@ -1756,8 +1756,8 @@ impl LightWallet {
         builder.set_fee(Amount::from_u64(*fee).unwrap());
 
         // A note on t addresses
-        // Funds received by t-addresses can't be explicitly spent in ZecWallet. 
-        // ZecWallet will lazily consolidate all t address funds into your shielded addresses. 
+        // Funds received by t-addresses can't be explicitly spent in ZecWallet.
+        // ZecWallet will lazily consolidate all t address funds into your shielded addresses.
         // Specifically, if you send an outgoing transaction that is sent to a shielded address,
         // ZecWallet will add all your t-address funds into that transaction, and send them to your shielded
         // address as change.
@@ -1766,8 +1766,8 @@ impl LightWallet {
                                 .filter(|utxo| utxo.unconfirmed_spent.is_none()) // Remove any unconfirmed spends
                                 .map(|utxo| utxo.clone())
                                 .collect();
-        
-        // Create a map from address -> sk for all taddrs, so we can spend from the 
+
+        // Create a map from address -> sk for all taddrs, so we can spend from the
         // right address
         let address_to_sk = self.tkeys.read().unwrap().iter()
                                 .map(|sk| (self.address_from_sk(&sk), sk.clone()))
@@ -1777,7 +1777,7 @@ impl LightWallet {
         tinputs.iter()
             .map(|utxo| {
                 let outpoint: OutPoint = utxo.to_outpoint();
-        
+
                 let coin = TxOut {
                     value: Amount::from_u64(utxo.value).unwrap(),
                     script_pubkey: Script { 0: utxo.script.clone() },
@@ -1793,14 +1793,14 @@ impl LightWallet {
                         Err(zcash_primitives::transaction::builder::Error::InvalidAddress)
                     }
                 }
-                
+
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| format!("{:?}", e))?;
-        
+
 
         // Confirm we were able to select sufficient value
-        let selected_value = notes.iter().map(|selected| selected.note.value).sum::<u64>() 
+        let selected_value = notes.iter().map(|selected| selected.note.value).sum::<u64>()
                              + tinputs.iter().map::<u64, _>(|utxo| utxo.value.into()).sum::<u64>();
 
         if selected_value < u64::from(target_value) {
@@ -1895,7 +1895,7 @@ impl LightWallet {
                 return Err(e);
             }
         }
-        
+
 
         println!("{}: Building transaction", now() - start_time);
         let (tx, _) = match builder.build(
@@ -1952,7 +1952,7 @@ impl LightWallet {
                                             Memo::from_bytes(s.as_bytes()).unwrap()
                                     } else {
                                         Memo::default()
-                                    }                                        
+                                    }
                                 }
                             },
                         }
@@ -1962,7 +1962,7 @@ impl LightWallet {
                     let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
                     wtx.outgoing_metadata = outgoing_metadata;
 
-                    // Add it into the mempool 
+                    // Add it into the mempool
                     mempool_txs.insert(tx.txid(), wtx);
                 },
                 Some(_) => {
@@ -1989,7 +1989,7 @@ impl LightWallet {
         {
             // Remove all expired Txns
             self.mempool_txs.write().unwrap().retain( | _, wtx| {
-                current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA)    
+                current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA)
             });
         }
 

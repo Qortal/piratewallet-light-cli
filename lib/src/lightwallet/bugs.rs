@@ -1,10 +1,10 @@
 ///
-/// In v1.0 of zecwallet-cli, there was a bug that incorrectly derived HD wallet keys after the first key. That is, the 
-/// first key, address was correct, but subsequent ones were not. 
-/// 
-/// The issue was that the 32-byte seed was directly being used to derive then subsequent addresses instead of the 
+/// In v1.0 of zecwallet-cli, there was a bug that incorrectly derived HD wallet keys after the first key. That is, the
+/// first key, address was correct, but subsequent ones were not.
+///
+/// The issue was that the 32-byte seed was directly being used to derive then subsequent addresses instead of the
 /// 64-byte pkdf2(seed). The issue affected both t and z addresses
-/// 
+///
 /// To fix the bug, we need to:
 /// 1. Check if the wallet has more than 1 address for t or z addresses
 /// 2. Move any funds in these addresses to the first address
@@ -32,7 +32,7 @@ impl BugBip39Derivation {
             return false;
         }
 
-        // The seed bytes is the raw entropy. To pass it to HD wallet generation, 
+        // The seed bytes is the raw entropy. To pass it to HD wallet generation,
         // we need to get the 64 byte bip39 entropy
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&wallet.seed, Language::English).unwrap(), "");
 
@@ -70,13 +70,13 @@ impl BugBip39Derivation {
             };
 
             return r.pretty(2);
-        } 
-        
+        }
+
         // Tranfer money
         // 1. The desination is z address #0
         let zaddr = client.do_address()["z_addresses"][0].as_str().unwrap().to_string();
         let balance_json = client.do_balance();
-        let amount: u64 =  balance_json["zbalance"].as_u64().unwrap() 
+        let amount: u64 =  balance_json["zbalance"].as_u64().unwrap()
                          + balance_json["tbalance"].as_u64().unwrap();
 
         let txid = if amount > 0 {
