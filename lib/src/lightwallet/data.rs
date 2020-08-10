@@ -399,7 +399,7 @@ pub struct WalletTx {
 
 impl WalletTx {
     pub fn serialized_version() -> u64 {
-        return 6;
+        return 5;
     }
 
     pub fn new(height: i32, datetime: u64, txid: &TxId) -> Self {
@@ -444,7 +444,7 @@ impl WalletTx {
         // Outgoing metadata was only added in version 2
         let outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r))?;
 
-        let outgoing_metadata_change = if version >= 6 {
+        let outgoing_metadata_change = if version >= 5 {
             Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r))?
         } else {
             vec![]
