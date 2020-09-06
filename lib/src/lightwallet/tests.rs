@@ -659,6 +659,7 @@ fn get_test_config() -> LightClientConfig {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 0,
         data_dir: None,
+        address_params: AddressParameters::new()
     }
 }
 
@@ -671,6 +672,7 @@ fn get_main_config() -> LightClientConfig {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 0,
         data_dir: None,
+        address_params: AddressParameters::new()
     }
 }
 
@@ -717,6 +719,7 @@ fn test_unconfirmed_txns() {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 5, // offset = 5
         data_dir: None,
+        address_params: AddressParameters::new()
     };
 
     let branch_id = u32::from_str_radix("2bb40e60", 16).unwrap();
@@ -2169,6 +2172,7 @@ fn test_t_z_derivation() {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 1,
         data_dir: None,
+        address_params: AddressParameters::new()
     };
 
     let seed_phrase = Some("chimney better bulb horror rebuild whisper improve intact letter giraffe brave rib appear bulk aim burst snap salt hill sad merge tennis phrase raise".to_string());
@@ -2325,6 +2329,7 @@ fn test_import_birthday_adjust() {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 0,
         data_dir: None,
+        address_params: AddressParameters::new()
     };
 
     let privkey = "secret-extended-key-main1q0p44m9zqqqqpqyxfvy5w2vq6ahvxyrwsk2w4h2zleun4cft4llmnsjlv77lhuuknv6x9jgu5g2clf3xq0wz9axxxq8klvv462r5pa32gjuj5uhxnvps6wsrdg6xll05unwks8qpgp4psmvy5e428uxaggn4l29duk82k3sv3njktaaj453fdmfmj2fup8rls4egqxqtj2p5a3yt4070khn99vzxj5ag5qjngc4v2kq0ctl9q2rpc2phu4p3e26egu9w88mchjf83sqgh3cev";

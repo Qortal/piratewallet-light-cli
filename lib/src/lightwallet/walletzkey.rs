@@ -295,6 +295,7 @@ pub mod tests {
       consensus_branch_id: "000000".to_string(),
       anchor_offset: 0,
       data_dir: None,
+      address_params: AddressParameters::new()
     }
   }
 

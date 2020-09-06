@@ -57,6 +57,31 @@ impl WalletStatus {
     }
 }
 
+
+#[derive(Clone, Debug)]
+pub struct AddressParameters {
+    pub coin_type: Option<u32>,
+    pub hrp_sapling_extended_spending_key: Option<String>,
+    pub hrp_sapling_extended_full_viewing_key: Option<String>,
+    pub hrp_sapling_payment_address: Option<String>,
+    pub b58_pubkey_address_prefix: Option<[u8; 2]>,
+    pub b58_script_address_prefix: Option<[u8; 2]>,
+}
+
+impl AddressParameters {
+    pub fn new() -> Self {
+        AddressParameters {
+            coin_type: Some(323), //Zero Default COIN_TYPE
+            hrp_sapling_extended_spending_key: None,
+            hrp_sapling_extended_full_viewing_key: None,
+            hrp_sapling_payment_address: None,
+            b58_pubkey_address_prefix: None,
+            b58_script_address_prefix: None
+        }
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct LightClientConfig {
     pub server                      : http::Uri,
@@ -64,7 +89,8 @@ pub struct LightClientConfig {
     pub sapling_activation_height   : u64,
     pub consensus_branch_id         : String,
     pub anchor_offset               : u32,
-    pub data_dir                    : Option<String>
+    pub data_dir                    : Option<String>,
+    pub address_params              : AddressParameters
 }
 
 impl LightClientConfig {
@@ -78,6 +104,7 @@ impl LightClientConfig {
             consensus_branch_id         : "".to_string(),
             anchor_offset               : ANCHOR_OFFSET,
             data_dir                    : dir,
+            address_params              : AddressParameters::new()
         }
     }
 
@@ -101,6 +128,7 @@ impl LightClientConfig {
             consensus_branch_id         : info.consensus_branch_id,
             anchor_offset               : ANCHOR_OFFSET,
             data_dir                    : None,
+            address_params              : AddressParameters::new()
         };
 
         Ok((config, info.block_height))
@@ -249,58 +277,106 @@ impl LightClientConfig {
         }.parse().unwrap()
     }
 
+    pub fn set_coin_type(&mut self, param: u32) {
+        self.address_params.coin_type = Some(param);
+    }
+
+    pub fn set_hrp_sapling_extended_spending_key(&mut self, param: String) {
+        self.address_params.hrp_sapling_extended_spending_key = Some(param);
+    }
+
+    pub fn set_hrp_sapling_extended_full_viewing_key(&mut self, param: String) {
+        self.address_params.hrp_sapling_extended_full_viewing_key = Some(param);
+    }
+
+    pub fn set_hrp_sapling_payment_address(&mut self, param: String) {
+        self.address_params.hrp_sapling_payment_address = Some(param);
+    }
+
+    pub fn set_b58_pubkey_address_prefix(&mut self, param: [u8; 2]) {
+        self.address_params.b58_pubkey_address_prefix = Some(param);
+    }
+
+    pub fn set_b58_script_address_prefix(&mut self, param: [u8; 2]) {
+        self.address_params.b58_script_address_prefix = Some(param);
+    }
+
     pub fn get_coin_type(&self) -> u32 {
-        match &self.chain_name[..] {
-            "main"    => mainnet::COIN_TYPE,
-            "test"    => testnet::COIN_TYPE,
-            "regtest" => regtest::COIN_TYPE,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.coin_type {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::COIN_TYPE,
+                    "test"    => testnet::COIN_TYPE,
+                    "regtest" => regtest::COIN_TYPE,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn hrp_sapling_address(&self) -> &str {
-        match &self.chain_name[..] {
-            "main"    => mainnet::HRP_SAPLING_PAYMENT_ADDRESS,
-            "test"    => testnet::HRP_SAPLING_PAYMENT_ADDRESS,
-            "regtest" => regtest::HRP_SAPLING_PAYMENT_ADDRESS,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.hrp_sapling_payment_address {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_PAYMENT_ADDRESS,
+                    "test"    => testnet::HRP_SAPLING_PAYMENT_ADDRESS,
+                    "regtest" => regtest::HRP_SAPLING_PAYMENT_ADDRESS,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn hrp_sapling_private_key(&self) -> &str {
-        match &self.chain_name[..] {
-            "main"    => mainnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            "test"    => testnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            "regtest" => regtest::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.hrp_sapling_extended_full_viewing_key {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    "test"    => testnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    "regtest" => regtest::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn hrp_sapling_viewing_key(&self) -> &str {
-        match &self.chain_name[..] {
-            "main"    => mainnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
-            "test"    => testnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
-            "regtest" => regtest::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.hrp_sapling_extended_spending_key {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    "test"    => testnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    "regtest" => regtest::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn base58_pubkey_address(&self) -> [u8; 2] {
-        match &self.chain_name[..] {
-            "main"    => mainnet::B58_PUBKEY_ADDRESS_PREFIX,
-            "test"    => testnet::B58_PUBKEY_ADDRESS_PREFIX,
-            "regtest" => regtest::B58_PUBKEY_ADDRESS_PREFIX,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.b58_pubkey_address_prefix {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::B58_PUBKEY_ADDRESS_PREFIX,
+                    "test"    => testnet::B58_PUBKEY_ADDRESS_PREFIX,
+                    "regtest" => regtest::B58_PUBKEY_ADDRESS_PREFIX,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
 
     pub fn base58_script_address(&self) -> [u8; 2] {
-        match &self.chain_name[..] {
-            "main"    => mainnet::B58_SCRIPT_ADDRESS_PREFIX,
-            "test"    => testnet::B58_SCRIPT_ADDRESS_PREFIX,
-            "regtest" => regtest::B58_SCRIPT_ADDRESS_PREFIX,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.b58_script_address_prefix {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::B58_SCRIPT_ADDRESS_PREFIX,
+                    "test"    => testnet::B58_SCRIPT_ADDRESS_PREFIX,
+                    "regtest" => regtest::B58_SCRIPT_ADDRESS_PREFIX,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
