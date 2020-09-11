@@ -40,6 +40,11 @@ tokio-rustls = { version = "0.13.0" }
 webpki = "0.21.0"
 webpki-roots = "0.18.0"
 
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+reqwest = { version = "0.10.8", features = ["blocking", "json"] }
+
 [dependencies.bellman]
 git = "https://github.com/zerocurrencycoin/librustzcash.git"
 rev = "0883d7f3fc26b4f615b049151e43c112c8c7b920"

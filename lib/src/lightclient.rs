@@ -259,8 +259,8 @@ impl LightClientConfig {
         log_path.into_boxed_path()
     }
 
-    pub fn get_initial_state(&self, height: u64) -> Option<(u64, &str, &str)> {
-        checkpoints::get_closest_checkpoint(&self.chain_name, height)
+    pub fn get_initial_state(&self, height: u64) -> Option<(u64, String, String)> {
+        checkpoints::get_closest_checkpoint(&self.chain_name, self.get_coin_type(), height)
     }
 
     pub fn get_server_or_default(server: Option<String>) -> http::Uri {
@@ -411,7 +411,7 @@ impl LightClient {
         let state = self.config.get_initial_state(height);
 
         match state {
-            Some((height, hash, tree)) => self.wallet.read().unwrap().set_initial_block(height.try_into().unwrap(), hash, tree),
+            Some((height, hash, tree)) => self.wallet.read().unwrap().set_initial_block(height.try_into().unwrap(), &hash, &tree),
             _ => true,
         };
     }
