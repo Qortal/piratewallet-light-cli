@@ -243,8 +243,8 @@ impl LightWallet {
 
         // If restoring from seed, make sure we are creating 5 addresses for users
         if seed_phrase.is_some() {
-            for _i in 0..5 {
-                lw.add_taddr();
+            for _i in 0..1 {
+                // lw.add_taddr();
                 lw.add_zaddr();
             }
         }
