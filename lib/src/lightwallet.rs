@@ -215,8 +215,8 @@ impl LightWallet {
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed_bytes, Language::English).unwrap(), "");
 
         // Derive only the first sk and address
-        let tpk = LightWallet::get_taddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
-        let taddr = LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), &tpk);
+        // let tpk = LightWallet::get_taddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
+        // let taddr = LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), &tpk);
 
         // TODO: We need to monitor addresses, and always keep 1 "free" address, so
         // users can import a seed phrase and automatically get all used addresses
@@ -231,8 +231,8 @@ impl LightWallet {
             nonce:       vec![],
             seed:        seed_bytes,
             zkeys:       Arc::new(RwLock::new(vec![WalletZKey::new_hdkey(hdkey_num, extsk)])),
-            tkeys:       Arc::new(RwLock::new(vec![tpk])),
-            taddresses:  Arc::new(RwLock::new(vec![taddr])),
+            tkeys:       Arc::new(RwLock::new(vec![])),
+            taddresses:  Arc::new(RwLock::new(vec![])),
             blocks:      Arc::new(RwLock::new(vec![])),
             txs:         Arc::new(RwLock::new(HashMap::new())),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
@@ -242,12 +242,12 @@ impl LightWallet {
         };
 
         // If restoring from seed, make sure we are creating 5 addresses for users
-        if seed_phrase.is_some() {
-            for _i in 0..1 {
+        // if seed_phrase.is_some() {
+            // for _i in 0..1 {
                 // lw.add_taddr();
-                lw.add_zaddr();
-            }
-        }
+                // lw.add_zaddr();
+            // }
+        // }
 
         Ok(lw)
     }
