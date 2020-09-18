@@ -1363,21 +1363,26 @@ impl LightWallet {
                 for spend in &tx.shielded_spends {
                     let txid = nfs
                         .iter()
-                        .find(|(nf, _, _)| &nf[..] == &spend.nullifier[..])
-                        .unwrap()
-                        .2;
-                    let spent_note = txs
-                        .get_mut(&txid)
-                        .unwrap()
-                        .notes
-                        .iter_mut()
-                        .find(|nd| &nd.nullifier[..] == &spend.nullifier[..])
-                        .unwrap();
+                        .find(|(nf, _, _)| &nf[..] == &spend.nullifier[..]);
 
-                    zinputs.push(encode_payment_address(
-                                        self.config.hrp_sapling_address(),
-                                        &spent_note.extfvk.fvk.vk
-                                            .to_payment_address(spent_note.diversifier, &JUBJUB).unwrap()));
+                    match txid {
+                        Some(id) => {
+                            let spent_note = txs
+                                .get_mut(&id.2)
+                                .unwrap()
+                                .notes
+                                .iter_mut()
+                                .find(|nd| &nd.nullifier[..] == &spend.nullifier[..])
+                                .unwrap();
+
+                            zinputs.push(encode_payment_address(
+                                                self.config.hrp_sapling_address(),
+                                                &spent_note.extfvk.fvk.vk
+                                                    .to_payment_address(spent_note.diversifier, &JUBJUB).unwrap()))
+                        },
+                        None => {}
+                    };
+
 
                 }
 
