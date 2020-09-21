@@ -328,7 +328,7 @@ impl LightClientConfig {
     }
 
     pub fn hrp_sapling_private_key(&self) -> &str {
-        match &self.address_params.hrp_sapling_extended_full_viewing_key {
+        match &self.address_params.hrp_sapling_extended_spending_key {
             Some(s) => s,
             None =>
                 match &self.chain_name[..] {
@@ -341,7 +341,7 @@ impl LightClientConfig {
     }
 
     pub fn hrp_sapling_viewing_key(&self) -> &str {
-        match &self.address_params.hrp_sapling_extended_spending_key {
+        match &self.address_params.hrp_sapling_extended_full_viewing_key {
             Some(s) => s,
             None =>
                 match &self.chain_name[..] {
