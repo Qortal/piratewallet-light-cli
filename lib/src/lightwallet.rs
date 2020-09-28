@@ -23,8 +23,10 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use pairing::bls12_381::{Bls12};
 use sha2::{Sha256, Digest};
 
+use sodiumoxide::crypto::secretbox;
+
 use zcash_client_backend::{
-    encoding::{encode_payment_address, encode_extended_spending_key},
+    encoding::{encode_payment_address, encode_extended_spending_key, encode_extended_full_viewing_key, decode_extended_spending_key, decode_extended_full_viewing_key},
     proto::compact_formats::{CompactBlock, CompactOutput},
     wallet::{WalletShieldedOutput, WalletShieldedSpend}
 };
@@ -55,13 +57,15 @@ mod extended_key;
 mod utils;
 mod address;
 mod prover;
-pub mod bugs;
+mod walletzkey;
 
 use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata};
 use extended_key::{KeyIndex, ExtendedPrivKey};
+use walletzkey::{WalletZKey, WalletZKeyType};
 
 pub const MAX_REORG: usize = 100;
-pub const GAP_RULE_UNUSED_ADDRESSES: usize = 5;
+
+pub const GAP_RULE_UNUSED_ADDRESSES: usize = 0;
 
 fn now() -> f64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as f64
@@ -112,12 +116,9 @@ pub struct LightWallet {
 
     seed: [u8; 32],    // Seed phrase for this wallet. If wallet is locked, this is 0
 
-    // List of keys, actually in this wallet. If the wallet is locked, the `extsks` will be
-    // encrypted (but the fvks are not encrpyted)
-    extsks:  Arc<RwLock<Vec<ExtendedSpendingKey>>>,
-    extfvks: Arc<RwLock<Vec<ExtendedFullViewingKey>>>,
-
-    pub zaddress: Arc<RwLock<Vec<PaymentAddress<Bls12>>>>,
+    // List of keys, actually in this wallet. This is a combination of HD keys derived from the seed,
+    // viewing keys and imported spending keys.
+    zkeys: Arc<RwLock<Vec<WalletZKey>>>,
 
     // Transparent keys. If the wallet is locked, then the secret keys will be encrypted,
     // but the addresses will be present.
@@ -143,7 +144,7 @@ pub struct LightWallet {
 
 impl LightWallet {
     pub fn serialized_version() -> u64 {
-        return 6;
+        return 8;
     }
 
     fn get_taddr_from_bip39seed(config: &LightClientConfig, bip39_seed: &[u8], pos: u32) -> SecretKey {
@@ -214,13 +215,14 @@ impl LightWallet {
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed_bytes, Language::English).unwrap(), "");
 
         // Derive only the first sk and address
-        let tpk = LightWallet::get_taddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
-        let taddr = LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), &tpk);
+        // let tpk = LightWallet::get_taddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
+        // let taddr = LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), &tpk);
 
         // TODO: We need to monitor addresses, and always keep 1 "free" address, so
         // users can import a seed phrase and automatically get all used addresses
-        let (extsk, extfvk, address)
-            = LightWallet::get_zaddr_from_bip39seed(&config, &bip39_seed.as_bytes(), 0);
+        let hdkey_num = 0;
+        let (extsk, _, _)
+            = LightWallet::get_zaddr_from_bip39seed(&config, &bip39_seed.as_bytes(), hdkey_num);
 
         let lw = LightWallet {
             encrypted:   false,
@@ -228,11 +230,9 @@ impl LightWallet {
             enc_seed:    [0u8; 48],
             nonce:       vec![],
             seed:        seed_bytes,
-            extsks:      Arc::new(RwLock::new(vec![extsk])),
-            extfvks:     Arc::new(RwLock::new(vec![extfvk])),
-            zaddress:    Arc::new(RwLock::new(vec![address])),
-            tkeys:       Arc::new(RwLock::new(vec![tpk])),
-            taddresses:  Arc::new(RwLock::new(vec![taddr])),
+            zkeys:       Arc::new(RwLock::new(vec![WalletZKey::new_hdkey(hdkey_num, extsk)])),
+            tkeys:       Arc::new(RwLock::new(vec![])),
+            taddresses:  Arc::new(RwLock::new(vec![])),
             blocks:      Arc::new(RwLock::new(vec![])),
             txs:         Arc::new(RwLock::new(HashMap::new())),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
@@ -242,12 +242,12 @@ impl LightWallet {
         };
 
         // If restoring from seed, make sure we are creating 5 addresses for users
-        if seed_phrase.is_some() {
-            for _i in 0..5 {
-                lw.add_taddr();
-                lw.add_zaddr();
-            }
-        }
+        // if seed_phrase.is_some() {
+            // for _i in 0..1 {
+                // lw.add_taddr();
+                // lw.add_zaddr();
+            // }
+        // }
 
         Ok(lw)
     }
@@ -294,21 +294,58 @@ impl LightWallet {
         let mut seed_bytes = [0u8; 32];
         reader.read_exact(&mut seed_bytes)?;
 
-        // Read the spending keys
-        let extsks = Vector::read(&mut reader, |r| ExtendedSpendingKey::read(r))?;
+        let zkeys = if version <= 6 {
+            // Up until version 6, the wallet keys were written out individually
+            // Read the spending keys
+            let extsks = Vector::read(&mut reader, |r| ExtendedSpendingKey::read(r))?;
 
-        let extfvks = if version >= 4 {
-            // Read the viewing keys
-            Vector::read(&mut reader, |r| ExtendedFullViewingKey::read(r))?
-        } else {
-            // Calculate the viewing keys
-            extsks.iter().map(|sk| ExtendedFullViewingKey::from(sk))
-                .collect::<Vec<ExtendedFullViewingKey>>()
+            let extfvks = if version >= 4 {
+                // Read the viewing keys
+                Vector::read(&mut reader, |r| ExtendedFullViewingKey::read(r))?
+            } else {
+                // Calculate the viewing keys
+                extsks.iter().map(|sk| ExtendedFullViewingKey::from(sk))
+                    .collect::<Vec<ExtendedFullViewingKey>>()
+            };
+
+            // Calculate the addresses
+            let addresses = extfvks.iter().map( |fvk| fvk.default_address().unwrap().1 )
+                .collect::<Vec<PaymentAddress<Bls12>>>();
+
+            // If extsks is of len 0, then this wallet is locked
+            let zkeys_result = if extsks.len() == 0 {
+                // Wallet is locked, so read only the viewing keys.
+                extfvks.iter().zip(addresses.iter()).enumerate().map(|(i, (extfvk, payment_address))| {
+                let zk = WalletZKey::new_locked_hdkey(i as u32, extfvk.clone());
+                if zk.zaddress != *payment_address {
+                    Err(io::Error::new(ErrorKind::InvalidData, "Payment address didn't match"))
+                } else {
+                    Ok(zk)
+                }
+                }).collect::<Vec<io::Result<WalletZKey>>>()
+            } else {
+                // Wallet is unlocked, read the spending keys as well
+                extsks.into_iter().zip(extfvks.into_iter().zip(addresses.iter())).enumerate()
+                .map(|(i, (extsk, (extfvk, payment_address)))| {
+                    let zk = WalletZKey::new_hdkey(i as u32, extsk);
+                    if zk.zaddress != *payment_address {
+                    return Err(io::Error::new(ErrorKind::InvalidData, "Payment address didn't match"));
+                    }
+
+                    if zk.extfvk != extfvk {
+                    return Err(io::Error::new(ErrorKind::InvalidData, "Full View key didn't match"));
+                    }
+
+                    Ok(zk)
+                }).collect::<Vec<io::Result<WalletZKey>>>()
+            };
+
+            // Convert vector of results into result of vector, returning an error if any one of the keys failed the checks above
+            zkeys_result.into_iter().collect::<io::Result<_>>()?
+        }  else {
+            // After version 6, we read the WalletZKey structs directly
+            Vector::read(&mut reader, |r| WalletZKey::read(r))?
         };
-
-        // Calculate the addresses
-        let addresses = extfvks.iter().map( |fvk| fvk.default_address().unwrap().1 )
-            .collect::<Vec<PaymentAddress<Bls12>>>();
 
         let tkeys = Vector::read(&mut reader, |r| {
             let mut tpk_bytes = [0u8; 32];
@@ -343,15 +380,13 @@ impl LightWallet {
 
         let birthday = reader.read_u64::<LittleEndian>()?;
 
-        Ok(LightWallet{
+        let lw = LightWallet{
             encrypted:   encrypted,
             unlocked:    !encrypted, // When reading from disk, if wallet is encrypted, it starts off locked.
             enc_seed:    enc_seed,
             nonce:       nonce,
             seed:        seed_bytes,
-            extsks:      Arc::new(RwLock::new(extsks)),
-            extfvks:     Arc::new(RwLock::new(extfvks)),
-            zaddress:    Arc::new(RwLock::new(addresses)),
+            zkeys:       Arc::new(RwLock::new(zkeys)),
             tkeys:       Arc::new(RwLock::new(tkeys)),
             taddresses:  Arc::new(RwLock::new(taddresses)),
             blocks:      Arc::new(RwLock::new(blocks)),
@@ -360,7 +395,14 @@ impl LightWallet {
             config:      config.clone(),
             birthday,
             total_scan_duration: Arc::new(RwLock::new(vec![Duration::new(0, 0)])),
-        })
+        };
+
+        // Do a one-time fix of the spent_at_height for older wallets
+        if version <= 7 {
+            lw.fix_spent_at_height();
+        }
+
+        Ok(lw)
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
@@ -387,14 +429,9 @@ impl LightWallet {
         // Flush after writing the seed, so in case of a disaster, we can still recover the seed.
         writer.flush()?;
 
-        // Write all the spending keys
-        Vector::write(&mut writer, &self.extsks.read().unwrap(),
-             |w, sk| sk.write(w)
-        )?;
-
-        // Write the FVKs
-        Vector::write(&mut writer, &self.extfvks.read().unwrap(),
-             |w, fvk| fvk.write(w)
+        // Write all the wallet's keys
+        Vector::write(&mut writer, &self.zkeys.read().unwrap(),
+             |w, zk| zk.write(w)
         )?;
 
         // Write the transparent private keys
@@ -458,14 +495,20 @@ impl LightWallet {
             .unwrap_or(&cmp::max(self.birthday, self.config.sapling_activation_height))
     }
 
-    // Get all z-address private keys. Returns a Vector of (address, privatekey)
-    pub fn get_z_private_keys(&self) -> Vec<(String, String)> {
-        self.extsks.read().unwrap().iter().map(|sk| {
-            (encode_payment_address(self.config.hrp_sapling_address(),
-                                    &ExtendedFullViewingKey::from(sk).default_address().unwrap().1),
-             encode_extended_spending_key(self.config.hrp_sapling_private_key(), &sk)
-            )
-        }).collect::<Vec<(String, String)>>()
+    // Get all z-address private keys. Returns a Vector of (address, privatekey, viewkey)
+    pub fn get_z_private_keys(&self) -> Vec<(String, String, String)> {
+        let keys = self.zkeys.read().unwrap().iter().map(|k| {
+            let pkey = match k.extsk.clone().map(|extsk| encode_extended_spending_key(self.config.hrp_sapling_private_key(), &extsk)) {
+                Some(pk) => pk,
+                None => "".to_string()
+            };
+
+            let vkey = encode_extended_full_viewing_key(self.config.hrp_sapling_viewing_key(), &k.extfvk);
+
+            (encode_payment_address(self.config.hrp_sapling_address(),&k.zaddress), pkey, vkey)
+        }).collect::<Vec<(String, String, String)>>();
+
+        keys
     }
 
     /// Get all t-address private keys. Returns a Vector of (address, secretkey)
@@ -481,29 +524,34 @@ impl LightWallet {
     /// NOTE: This does NOT rescan
     pub fn add_zaddr(&self) -> String {
         if !self.unlocked {
-            return "".to_string();
+            return "Error: Can't add key while wallet is locked".to_string();
         }
 
-        let pos = self.extsks.read().unwrap().len() as u32;
+        // Find the highest pos we have
+        let pos = self.zkeys.read().unwrap().iter()
+            .filter(|zk| zk.hdkey_num.is_some())
+            .max_by(|zk1, zk2| zk1.hdkey_num.unwrap().cmp(&zk2.hdkey_num.unwrap()))
+            .map_or(0, |zk| zk.hdkey_num.unwrap() + 1);
+
+
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&self.seed, Language::English).unwrap(), "");
 
-        let (extsk, extfvk, address) =
+        let (extsk, _, _) =
             LightWallet::get_zaddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos);
 
-        let zaddr = encode_payment_address(self.config.hrp_sapling_address(), &address);
-        self.extsks.write().unwrap().push(extsk);
-        self.extfvks.write().unwrap().push(extfvk);
-        self.zaddress.write().unwrap().push(address);
+        // let zaddr = encode_payment_address(self.config.hrp_sapling_address(), &address);
+        let newkey = WalletZKey::new_hdkey(pos, extsk);
+        self.zkeys.write().unwrap().push(newkey.clone());
 
-        zaddr
+        encode_payment_address(self.config.hrp_sapling_address(), &newkey.zaddress)
     }
 
     /// Add a new t address to the wallet. This will derive a new address from the seed
     /// at the next position.
-    /// NOTE: This is not rescan the wallet
+    /// NOTE: This will not rescan the wallet
     pub fn add_taddr(&self) -> String {
         if !self.unlocked {
-            return "".to_string();
+            return "Error: Can't add key while wallet is locked".to_string();
         }
 
         let pos = self.tkeys.read().unwrap().len() as u32;
@@ -516,6 +564,81 @@ impl LightWallet {
         self.taddresses.write().unwrap().push(address.clone());
 
         address
+    }
+
+    // Add a new imported spending key to the wallet
+    /// NOTE: This will not rescan the wallet
+    pub fn add_imported_sk(&mut self, sk: String, birthday: u64) -> String {
+        if self.encrypted {
+            return "Error: Can't import spending key while wallet is encrypted".to_string();
+        }
+
+        // First, try to interpret the key
+        let extsk = match decode_extended_spending_key(self.config.hrp_sapling_private_key(), &sk) {
+            Ok(Some(k)) => k,
+            Ok(None) => return format!("Error: Couldn't decode spending key"),
+            Err(e) => return format!("Error importing spending key: {}", e)
+        };
+
+        // Make sure the key doesn't already exist
+        if self.zkeys.read().unwrap().iter().find(|&wk| wk.extsk.is_some() && wk.extsk.as_ref().unwrap() == &extsk.clone()).is_some() {
+            return "Error: Key already exists".to_string();
+        }
+
+        let extfvk = ExtendedFullViewingKey::from(&extsk);
+        let zaddress = {
+            let mut zkeys = self.zkeys.write().unwrap();
+            let maybe_existing_zkey = zkeys.iter_mut().find(|wk| wk.extfvk == extfvk);
+
+            // If the viewing key exists, and is now being upgraded to the spending key, replace it in-place
+            if maybe_existing_zkey.is_some() {
+                let mut existing_zkey = maybe_existing_zkey.unwrap();
+                existing_zkey.extsk = Some(extsk);
+                existing_zkey.keytype = WalletZKeyType::ImportedSpendingKey;
+                existing_zkey.zaddress.clone()
+            } else {
+                let newkey = WalletZKey::new_imported_sk(extsk);
+                zkeys.push(newkey.clone());
+                newkey.zaddress
+            }
+        };
+
+        // Adjust wallet birthday
+        if birthday < self.birthday {
+            self.birthday = if birthday < self.config.sapling_activation_height {self.config.sapling_activation_height} else {birthday};
+        }
+
+        encode_payment_address(self.config.hrp_sapling_address(), &zaddress)
+    }
+
+    // Add a new imported viewing key to the wallet
+    /// NOTE: This will not rescan the wallet
+    pub fn add_imported_vk(&mut self, vk: String, birthday: u64) -> String {
+        if !self.unlocked {
+            return "Error: Can't add key while wallet is locked".to_string();
+        }
+
+        // First, try to interpret the key
+        let extfvk = match decode_extended_full_viewing_key(self.config.hrp_sapling_viewing_key(), &vk) {
+            Ok(Some(k)) => k,
+            Ok(None) => return format!("Error: Couldn't decode viewing key"),
+            Err(e) => return format!("Error importing viewing key: {}", e)
+        };
+
+        // Make sure the key doesn't already exist
+        if self.zkeys.read().unwrap().iter().find(|wk| wk.extfvk == extfvk.clone()).is_some() {
+            return "Error: Key already exists".to_string();
+        }
+
+        let newkey = WalletZKey::new_imported_viewkey(extfvk);
+        self.zkeys.write().unwrap().push(newkey.clone());
+
+        // Adjust wallet birthday
+        if birthday < self.birthday {
+            self.birthday = if birthday < self.config.sapling_activation_height {self.config.sapling_activation_height} else {birthday};
+        }
+
+        encode_payment_address(self.config.hrp_sapling_address(), &newkey.zaddress)
     }
 
     /// Clears all the downloaded blocks and resets the state back to the initial block.
@@ -611,6 +734,14 @@ impl LightWallet {
         }
     }
 
+    /// Get the height of the anchor block
+    pub fn get_anchor_height(&self) -> u32 {
+        match self.get_target_height_and_anchor_offset() {
+            Some((height, anchor_offset)) => height - anchor_offset as u32 - 1,
+            None => return 0,
+        }
+    }
+
     pub fn memo_str(memo: &Option<Memo>) -> Option<String> {
         match memo {
             Some(memo) => {
@@ -621,6 +752,12 @@ impl LightWallet {
             }
             _ => None
         }
+    }
+
+    pub fn get_all_zaddresses(&self) -> Vec<String> {
+        self.zkeys.read().unwrap().iter().map( |zk| {
+            encode_payment_address(self.config.hrp_sapling_address(), &zk.zaddress)
+        }).collect()
     }
 
     pub fn address_from_prefix_sk(prefix: &[u8; 2], sk: &secp256k1::SecretKey) -> String {
@@ -661,8 +798,6 @@ impl LightWallet {
     }
 
     pub fn encrypt(&mut self, passwd: String) -> io::Result<()> {
-        use sodiumoxide::crypto::secretbox;
-
         if self.encrypted {
             return Err(io::Error::new(ErrorKind::AlreadyExists, "Wallet is already encrypted"));
         }
@@ -674,8 +809,12 @@ impl LightWallet {
         let cipher = secretbox::seal(&self.seed, &nonce, &key);
 
         self.enc_seed.copy_from_slice(&cipher);
-        self.nonce = vec![];
-        self.nonce.extend_from_slice(nonce.as_ref());
+        self.nonce = nonce.as_ref().to_vec();
+
+        // Encrypt the individual keys
+        self.zkeys.write().unwrap().iter_mut()
+            .map(|k| k.encrypt(&key))
+            .collect::<io::Result<Vec<()>>>()?;
 
         self.encrypted = true;
         self.lock()?;
@@ -695,7 +834,11 @@ impl LightWallet {
         // Empty the seed and the secret keys
         self.seed.copy_from_slice(&[0u8; 32]);
         self.tkeys = Arc::new(RwLock::new(vec![]));
-        self.extsks = Arc::new(RwLock::new(vec![]));
+
+        // Remove all the private key from the zkeys
+        self.zkeys.write().unwrap().iter_mut().map(|zk| {
+            zk.lock()
+        }).collect::<io::Result<Vec<_>>>()?;
 
         self.unlocked = false;
 
@@ -703,8 +846,6 @@ impl LightWallet {
     }
 
     pub fn unlock(&mut self, passwd: String) -> io::Result<()> {
-        use sodiumoxide::crypto::secretbox;
-
         if !self.encrypted {
             return Err(Error::new(ErrorKind::AlreadyExists, "Wallet is not encrypted"));
         }
@@ -729,26 +870,6 @@ impl LightWallet {
         // we need to get the 64 byte bip39 entropy
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed, Language::English).unwrap(), "");
 
-        // Sapling keys
-        let mut extsks = vec![];
-        for pos in 0..self.zaddress.read().unwrap().len() {
-            let (extsk, extfvk, address) =
-                LightWallet::get_zaddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos as u32);
-
-            if address != self.zaddress.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData,
-                        format!("zaddress mismatch at {}. {:?} vs {:?}", pos, address, self.zaddress.read().unwrap()[pos])));
-            }
-
-            if extfvk != self.extfvks.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData,
-                            format!("fvk mismatch at {}. {:?} vs {:?}", pos, extfvk, self.extfvks.read().unwrap()[pos])));
-            }
-
-            // Don't add it to self yet, we'll do that at the end when everything is verified
-            extsks.push(extsk);
-        }
-
         // Transparent keys
         let mut tkeys = vec![];
         for pos in 0..self.taddresses.read().unwrap().len() {
@@ -763,8 +884,12 @@ impl LightWallet {
             tkeys.push(sk);
         }
 
+        // Go over the zkeys, and add the spending keys again
+        self.zkeys.write().unwrap().iter_mut().map(|zk| {
+            zk.unlock(&self.config, bip39_seed.as_bytes(), &key)
+        }).collect::<io::Result<Vec<()>>>()?;
+
         // Everything checks out, so we'll update our wallet with the decrypted values
-        self.extsks = Arc::new(RwLock::new(extsks));
         self.tkeys = Arc::new(RwLock::new(tkeys));
         self.seed.copy_from_slice(&seed);
 
@@ -785,6 +910,11 @@ impl LightWallet {
         if !self.unlocked {
             self.unlock(passwd)?;
         }
+
+        // Remove encryption from individual zkeys
+        self.zkeys.write().unwrap().iter_mut().map(|zk| {
+            zk.remove_encryption()
+        }).collect::<io::Result<Vec<()>>>()?;
 
         // Permanantly remove the encryption
         self.encrypted = false;
@@ -847,6 +977,48 @@ impl LightWallet {
             .sum::<u64>()
     }
 
+    pub fn unverified_zbalance(&self, addr: Option<String>) -> u64 {
+        let anchor_height = match self.get_target_height_and_anchor_offset() {
+            Some((height, anchor_offset)) => height - anchor_offset as u32 - 1,
+            None => return 0,
+        };
+
+        self.txs
+            .read()
+            .unwrap()
+            .values()
+            .map(|tx| {
+                tx.notes
+                    .iter()
+                    .filter(|nd| nd.spent.is_none() && nd.unconfirmed_spent.is_none())
+                    .filter(|nd| {
+                        // Check to see if we have this note's spending key.
+                        self.have_spendingkey_for_extfvk(&nd.extfvk)
+                    })
+                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it.
+                        match addr.clone() {
+                            Some(a) => a == encode_payment_address(
+                                                self.config.hrp_sapling_address(),
+                                                &nd.extfvk.fvk.vk
+                                                    .to_payment_address(nd.diversifier, &JUBJUB).unwrap()
+                                            ),
+                            None    => true
+                        }
+                    })
+                    .map(|nd| {
+                        if tx.block as u32 <= anchor_height {
+                            // If confirmed, then unconfirmed is 0
+                            0
+                        } else {
+                            // If confirmed but dont have anchor yet, it is unconfirmed
+                            nd.note.value
+                        }
+                    })
+                    .sum::<u64>()
+            })
+            .sum::<u64>()
+    }
+
     pub fn verified_zbalance(&self, addr: Option<String>) -> u64 {
         let anchor_height = match self.get_target_height_and_anchor_offset() {
             Some((height, anchor_offset)) => height - anchor_offset as u32 - 1,
@@ -861,6 +1033,7 @@ impl LightWallet {
                 if tx.block as u32 <= anchor_height {
                     tx.notes
                         .iter()
+                        .filter(|nd| nd.spent.is_none() && nd.unconfirmed_spent.is_none())
                         .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it.
                             match addr.clone() {
                                 Some(a) => a == encode_payment_address(
@@ -871,13 +1044,64 @@ impl LightWallet {
                                 None    => true
                             }
                         })
-                        .map(|nd| if nd.spent.is_none() && nd.unconfirmed_spent.is_none() { nd.note.value } else { 0 })
+                        .map(|nd| nd.note.value)
                         .sum::<u64>()
                 } else {
                     0
                 }
             })
             .sum::<u64>()
+    }
+
+    pub fn spendable_zbalance(&self, addr: Option<String>) -> u64 {
+        let anchor_height = self.get_anchor_height();
+
+        self.txs
+            .read()
+            .unwrap()
+            .values()
+            .map(|tx| {
+                if tx.block as u32 <= anchor_height {
+                    tx.notes
+                        .iter()
+                        .filter(|nd| nd.spent.is_none() && nd.unconfirmed_spent.is_none())
+                        .filter(|nd| {
+                            // Check to see if we have this note's spending key.
+                            self.have_spendingkey_for_extfvk(&nd.extfvk)
+                        })
+                        .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it.
+                            match addr.clone() {
+                                Some(a) => a == encode_payment_address(
+                                                    self.config.hrp_sapling_address(),
+                                                    &nd.extfvk.fvk.vk
+                                                        .to_payment_address(nd.diversifier, &JUBJUB).unwrap()
+                                                ),
+                                None    => true
+                            }
+                        })
+                        .map(|nd| nd.note.value)
+                        .sum::<u64>()
+                } else {
+                    0
+                }
+            })
+            .sum::<u64>()
+    }
+
+    pub fn have_spendingkey_for_extfvk(&self, extfvk: &ExtendedFullViewingKey) -> bool {
+        match self.zkeys.read().unwrap().iter().find(|zk| zk.extfvk == *extfvk) {
+            None => false,
+            Some(zk) => zk.have_spending_key()
+        }
+    }
+
+    pub fn have_spending_key_for_zaddress(&self, address: &String) -> bool {
+        match self.zkeys.read().unwrap().iter()
+            .find(|zk| encode_payment_address(self.config.hrp_sapling_address(), &zk.zaddress) == *address)
+            {
+                None => false,
+                Some(zk) => zk.have_spending_key()
+            }
     }
 
     fn add_toutput_to_wtx(&self, height: i32, timestamp: u64, txid: &TxId, vout: &TxOut, n: u64) {
@@ -945,8 +1169,11 @@ impl LightWallet {
     // If one of the last 'n' zaddress was used, ensure we add the next HD zaddress to the wallet
     pub fn ensure_hd_zaddresses(&self, address: &String) {
         let last_addresses = {
-            self.zaddress.read().unwrap().iter().rev().take(GAP_RULE_UNUSED_ADDRESSES)
-                .map(|s| encode_payment_address(self.config.hrp_sapling_address(), s))
+            self.zkeys.read().unwrap().iter()
+                .filter(|zk| zk.keytype == WalletZKeyType::HdKey)
+                .rev()
+                .take(GAP_RULE_UNUSED_ADDRESSES)
+                .map(|s| encode_payment_address(self.config.hrp_sapling_address(), &s.zaddress))
                 .collect::<Vec<String>>()
         };
 
@@ -1071,18 +1298,18 @@ impl LightWallet {
 
         // Scan shielded sapling outputs to see if anyone of them is us, and if it is, extract the memo
         for output in tx.shielded_outputs.iter() {
-            let ivks: Vec<_> = self.extfvks.read().unwrap().iter().map(
-                |extfvk| extfvk.fvk.vk.ivk().clone()
-            ).collect();
+            let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
+                .map(|zk| zk.extfvk.fvk.vk.ivk()
+                ).collect();
 
             let cmu = output.cmu;
             let ct  = output.enc_ciphertext;
 
             // Search all of our keys
-            for (_account, ivk) in ivks.iter().enumerate() {
+            for ivk in ivks {
                 let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
 
-                let (note, _to, memo) = match try_sapling_note_decryption(ivk, &epk_prime, &cmu, &ct) {
+                let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
                     Some(ret) => ret,
                     None => continue,
                 };
@@ -1098,7 +1325,10 @@ impl LightWallet {
                         .and_then(|t| {
                             t.notes.iter_mut().find(|nd| nd.note == note)
                         }) {
-                            None => (),
+                            None => {
+                                info!("No txid matched for incoming sapling funds while updating memo");
+                                ()
+                            },
                             Some(nd) => {
                                 nd.memo = Some(memo)
                             }
@@ -1133,21 +1363,26 @@ impl LightWallet {
                 for spend in &tx.shielded_spends {
                     let txid = nfs
                         .iter()
-                        .find(|(nf, _, _)| &nf[..] == &spend.nullifier[..])
-                        .unwrap()
-                        .2;
-                    let spent_note = txs
-                        .get_mut(&txid)
-                        .unwrap()
-                        .notes
-                        .iter_mut()
-                        .find(|nd| &nd.nullifier[..] == &spend.nullifier[..])
-                        .unwrap();
+                        .find(|(nf, _, _)| &nf[..] == &spend.nullifier[..]);
 
-                    zinputs.push(encode_payment_address(
-                                        self.config.hrp_sapling_address(),
-                                        &spent_note.extfvk.fvk.vk
-                                            .to_payment_address(spent_note.diversifier, &JUBJUB).unwrap()));
+                    match txid {
+                        Some(id) => {
+                            let spent_note = txs
+                                .get_mut(&id.2)
+                                .unwrap()
+                                .notes
+                                .iter_mut()
+                                .find(|nd| &nd.nullifier[..] == &spend.nullifier[..])
+                                .unwrap();
+
+                            zinputs.push(encode_payment_address(
+                                                self.config.hrp_sapling_address(),
+                                                &spent_note.extfvk.fvk.vk
+                                                    .to_payment_address(spent_note.diversifier, &JUBJUB).unwrap()))
+                        },
+                        None => {}
+                    };
+
 
                 }
 
@@ -1156,12 +1391,13 @@ impl LightWallet {
 
 
             // Search all ovks that we have
-            let ovks: Vec<_> = self.extfvks.read().unwrap().iter().map(
-                |extfvk| extfvk.fvk.ovk.clone()
-            ).collect();
+            let ovks: Vec<_> = self.zkeys.read().unwrap().iter()
+                .map(|zk| zk.extfvk.fvk.ovk.clone())
+                .collect();
 
-            for (_account, ovk) in ovks.iter().enumerate() {
-                match try_sapling_output_recovery(ovk,
+            for ovk in ovks {
+                match try_sapling_output_recovery(
+                    &ovk,
                     &output.cv,
                     &output.cmu,
                     &output.ephemeral_key.as_prime_order(&JUBJUB).unwrap(),
@@ -1579,6 +1815,16 @@ impl LightWallet {
             // Create a write lock
             let mut txs = self.txs.write().unwrap();
 
+            // Trim the older witnesses
+            txs.values_mut().for_each(|wtx| {
+                wtx.notes
+                    .iter_mut()
+                    .filter(|nd| nd.spent.is_some() && nd.spent_at_height.is_some() && nd.spent_at_height.unwrap() < height - (MAX_REORG as i32) - 1)
+                    .for_each(|nd| {
+                        nd.witnesses.clear()
+                    })
+            });
+
             // Create a Vec containing all unspent nullifiers.
             // Include only the confirmed spent nullifiers, since unconfirmed ones still need to be included
             // during scan_block below.
@@ -1614,17 +1860,30 @@ impl LightWallet {
 
             new_txs = {
                 let nf_refs = nfs.iter().map(|(nf, account, _)| (nf.to_vec(), *account)).collect::<Vec<_>>();
+                let extfvks: Vec<ExtendedFullViewingKey> = self.zkeys.read().unwrap().iter().map(|zk| zk.extfvk.clone()).collect();
 
-                // Create a single mutable slice of all the newly-added witnesses.
+                // Create a single mutable slice of all the wallet's note's witnesses.
                 let mut witness_refs: Vec<_> = txs
                     .values_mut()
-                    .map(|tx| tx.notes.iter_mut().filter_map(|nd| nd.witnesses.last_mut()))
+                    .map(|tx|
+                        tx.notes.iter_mut()
+                            .filter_map(|nd|
+                                // Note was not spent
+                                if nd.spent.is_none() && nd.unconfirmed_spent.is_none() {
+                                    nd.witnesses.last_mut()
+                                } else if nd.spent.is_some() && nd.spent_at_height.is_some() && nd.spent_at_height.unwrap() < height - (MAX_REORG as i32) - 1 {
+                                   // Note was spent in the last 100 blocks
+                                    nd.witnesses.last_mut()
+                                } else {
+                                    // If note was old (spent NOT in the last 100 blocks)
+                                    None
+                                }))
                     .flatten()
                     .collect();
 
                 self.scan_block_internal(
                     block.clone(),
-                    &self.extfvks.read().unwrap(),
+                    &extfvks,
                     nf_refs,
                     &mut block_data.tree,
                     &mut witness_refs[..],
@@ -1671,6 +1930,7 @@ impl LightWallet {
                 // Mark the note as spent, and remove the unconfirmed part of it
                 info!("Marked a note as spent");
                 spent_note.spent = Some(tx.txid);
+                spent_note.spent_at_height = Some(height);
                 spent_note.unconfirmed_spent = None::<TxId>;
 
                 total_shielded_value_spent += spent_note.note.value;
@@ -1687,7 +1947,7 @@ impl LightWallet {
             // Save notes.
             for output in tx.shielded_outputs
             {
-                let new_note = SaplingNoteData::new(&self.extfvks.read().unwrap()[output.account], output);
+                let new_note = SaplingNoteData::new(&self.zkeys.read().unwrap()[output.account].extfvk, output);
                 match LightWallet::note_address(self.config.hrp_sapling_address(), &new_note) {
                     Some(a) => {
                         info!("Received sapling output to {}", a);
@@ -1733,15 +1993,34 @@ impl LightWallet {
         Ok(all_txs)
     }
 
-    pub fn send_to_address(
+    // Add the spent_at_height for each sapling note that has been spent. This field was added in wallet version 8,
+    // so for older wallets, it will need to be added
+    pub fn fix_spent_at_height(&self) {
+        // First, build an index of all the txids and the heights at which they were spent.
+        let spent_txid_map: HashMap<_, _> = self.txs.read().unwrap().iter().map(|(txid, wtx)| (txid.clone(), wtx.block)).collect();
+
+        // Go over all the sapling notes that might need updating
+        self.txs.write().unwrap().values_mut().for_each(|wtx| {
+            wtx.notes.iter_mut()
+                .filter(|nd| nd.spent.is_some() && nd.spent_at_height.is_none())
+                .for_each(|nd| {
+                    nd.spent_at_height = spent_txid_map.get(&nd.spent.unwrap()).map(|b| *b);
+                })
+        });
+    }
+
+    pub fn send_to_address<F> (
         &self,
         consensus_branch_id: u32,
         spend_params: &[u8],
         output_params: &[u8],
         from: &str,
         tos: Vec<(&str, u64, Option<String>)>,
-        fee: &u64
-    ) -> Result<Box<[u8]>, String> {
+        fee: &u64,
+        broadcast_fn: F
+    ) -> Result<(String, Vec<u8>), String>
+        where F: Fn(Box<[u8]>) -> Result<String, String>
+    {
         if !self.unlocked {
             return Err("Cannot spend while wallet is locked".to_string());
         }
@@ -1788,14 +2067,30 @@ impl LightWallet {
 
         // Select notes to cover the target value
         println!("{}: Selecting notes", now() - start_time);
-        let target_value = Amount::from_u64(total_value).unwrap() + Amount::from_u64(*fee).unwrap() ;
-        let notes: Vec<_> = self.txs.read().unwrap().iter()
+        let target_value = Amount::from_u64(total_value).unwrap() + Amount::from_u64(*fee).unwrap();
+
+        // Select the candidate notes that are eligible to be spent
+        let mut candidate_notes: Vec<_> = self.txs.read().unwrap().iter()
             .map(|(txid, tx)| tx.notes.iter().map(move |note| (*txid, note)))
             .flatten()
-            .filter(|(_txid, note)|LightWallet::note_address(self.config.hrp_sapling_address(), note).unwrap() == from)
-            .filter_map(|(txid, note)|
-                SpendableNote::from(txid, note, anchor_offset, &self.extsks.read().unwrap()[note.account])
-            )
+            .filter_map(|(txid, note)| {
+                // Filter out notes that are already spent
+                if note.spent.is_some() || note.unconfirmed_spent.is_some() {
+                    None
+                } else {
+                    // Get the spending key for the selected fvk, if we have it
+                    let extsk = self.zkeys.read().unwrap().iter()
+                        .find(|zk| zk.extfvk == note.extfvk)
+                        .and_then(|zk| zk.extsk.clone());
+                    SpendableNote::from(txid, note, anchor_offset, &extsk)
+                }
+            }).collect();
+
+        // Sort by highest value-notes first.
+        candidate_notes.sort_by(|a, b| b.note.value.cmp(&a.note.value));
+
+        // Select the minimum number of notes required to satisfy the target value
+        let notes: Vec<_> = candidate_notes.iter()
             .scan(0, |running_total, spendable| {
                 let value = spendable.note.value;
                 let ret = if *running_total < u64::from(target_value) {
@@ -1890,7 +2185,7 @@ impl LightWallet {
         // Use the ovk belonging to the address being sent from, if not using any notes
         // use the first address in the wallet for the ovk.
         let ovk = if notes.len() == 0 {
-            self.extfvks.read().unwrap()[0].fvk.ovk
+            self.zkeys.read().unwrap()[0].extfvk.fvk.ovk
         } else {
             ExtendedFullViewingKey::from(&notes[0].extsk).fvk.ovk
         };
@@ -1928,13 +2223,16 @@ impl LightWallet {
             // Compute memo if it exists
             let encoded_memo = match memo {
                 None => None,
-                Some(s) => match Memo::from_bytes(s.as_bytes()) {
-                    None => {
-                        let e = format!("Error creating output. Memo {:?} is too long", s);
-                        error!("{}", e);
-                        return Err(e);
-                    },
-                    Some(m) => Some(m)
+                Some(s) => {
+                    // If the string starts with an "0x", and contains only hex chars ([a-f0-9]+) then
+                    // interpret it as a hex
+                    match utils::interpret_memo_string(&s) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            error!("{}", e);
+                            return Err(e);
+                        }
+                    }
                 }
             };
 
@@ -1970,7 +2268,11 @@ impl LightWallet {
         println!("{}: Transaction created", now() - start_time);
         println!("Transaction ID: {}", tx.txid());
 
+        // Create the TX bytes
+        let mut raw_tx = vec![];
+        tx.write(&mut raw_tx).unwrap();
 
+        let txid = broadcast_fn(raw_tx.clone().into_boxed_slice())?;
 
         // Mark notes as spent.
         {
@@ -2008,10 +2310,16 @@ impl LightWallet {
                                 None    => Memo::default(),
                                 Some(s) => {
                                     // If the address is not a z-address, then drop the memo
-                                    if LightWallet::is_shielded_address(&addr.to_string(), &self.config) {
-                                            Memo::from_bytes(s.as_bytes()).unwrap()
-                                    } else {
+                                    if !LightWallet::is_shielded_address(&addr.to_string(), &self.config) {
                                         Memo::default()
+                                    } else {
+                                        match utils::interpret_memo_string(s) {
+                                            Ok(m) => m,
+                                            Err(e) => {
+                                                error!("{}", e);
+                                                Memo::default()
+                                            }
+                                        }
                                     }
                                 }
                             },
@@ -2032,10 +2340,7 @@ impl LightWallet {
             }
         }
 
-        // Return the encoded transaction, so the caller can send it.
-        let mut raw_tx = vec![];
-        tx.write(&mut raw_tx).unwrap();
-        Ok(raw_tx.into_boxed_slice())
+        Ok((txid, raw_tx))
     }
 
     // After some blocks have been mined, we need to remove the Txns from the mempool_tx structure

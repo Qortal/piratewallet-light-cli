@@ -29,7 +29,7 @@ ring = "0.16.9"
 libflate = "0.1"
 subtle = "2"
 threadpool = "1.8.0"
-num_cpus = "1.13.0"
+num_cpus = "1.12.0"
 
 tonic = { version = "0.2.1", features = ["tls", "tls-roots"] }
 bytes = "0.4"
@@ -39,6 +39,11 @@ tokio = { version = "0.2", features = ["rt-threaded", "time", "stream", "fs", "m
 tokio-rustls = { version = "0.13.0" }
 webpki = "0.21.0"
 webpki-roots = "0.18.0"
+
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+reqwest = { version = "0.10.8", features = ["blocking", "json"] }
 
 [dependencies.bellman]
 git = "https://github.com/zerocurrencycoin/librustzcash.git"

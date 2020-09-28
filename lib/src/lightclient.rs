@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock, Mutex, mpsc::channel};
 use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::path::{Path, PathBuf};
 use std::fs::File;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use std::cmp::{max, min};
 use std::io;
 use std::io::prelude::*;
@@ -18,9 +18,7 @@ use threadpool::ThreadPool;
 
 use json::{object, array, JsonValue};
 use zcash_primitives::transaction::{TxId, Transaction};
-use zcash_client_backend::{
-    constants::testnet, constants::mainnet, constants::regtest, encoding::encode_payment_address,
-};
+use zcash_client_backend::{constants::testnet, constants::mainnet, constants::regtest,};
 
 use log::{info, warn, error, LevelFilter};
 use log4rs::append::rolling_file::RollingFileAppender;
@@ -59,6 +57,31 @@ impl WalletStatus {
     }
 }
 
+
+#[derive(Clone, Debug)]
+pub struct AddressParameters {
+    pub coin_type: Option<u32>,
+    pub hrp_sapling_extended_spending_key: Option<String>,
+    pub hrp_sapling_extended_full_viewing_key: Option<String>,
+    pub hrp_sapling_payment_address: Option<String>,
+    pub b58_pubkey_address_prefix: Option<[u8; 2]>,
+    pub b58_script_address_prefix: Option<[u8; 2]>,
+}
+
+impl AddressParameters {
+    pub fn new() -> Self {
+        AddressParameters {
+            coin_type: Some(323), //Zero Default COIN_TYPE
+            hrp_sapling_extended_spending_key: None,
+            hrp_sapling_extended_full_viewing_key: None,
+            hrp_sapling_payment_address: None,
+            b58_pubkey_address_prefix: None,
+            b58_script_address_prefix: None
+        }
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct LightClientConfig {
     pub server                      : http::Uri,
@@ -66,7 +89,8 @@ pub struct LightClientConfig {
     pub sapling_activation_height   : u64,
     pub consensus_branch_id         : String,
     pub anchor_offset               : u32,
-    pub data_dir                    : Option<String>
+    pub data_dir                    : Option<String>,
+    pub address_params              : AddressParameters
 }
 
 impl LightClientConfig {
@@ -80,6 +104,7 @@ impl LightClientConfig {
             consensus_branch_id         : "".to_string(),
             anchor_offset               : ANCHOR_OFFSET,
             data_dir                    : dir,
+            address_params              : AddressParameters::new()
         }
     }
 
@@ -103,6 +128,7 @@ impl LightClientConfig {
             consensus_branch_id         : info.consensus_branch_id,
             anchor_offset               : ANCHOR_OFFSET,
             data_dir                    : None,
+            address_params              : AddressParameters::new()
         };
 
         Ok((config, info.block_height))
@@ -148,6 +174,9 @@ impl LightClientConfig {
                 zcash_data_location = dirs::data_dir().expect("Couldn't determine app data directory!");
                 zcash_data_location.push("Zero");
             } else {
+                if dirs::home_dir().is_none() {
+                    info!("Couldn't determine home dir!");
+                }
                 zcash_data_location = dirs::home_dir().expect("Couldn't determine home directory!");
                 zcash_data_location.push(".zero");
             };
@@ -173,6 +202,28 @@ impl LightClientConfig {
         }
 
         zcash_data_location.into_boxed_path()
+    }
+
+    pub fn get_zcash_params_path(&self) -> io::Result<Box<Path>> {
+        if dirs::home_dir().is_none() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Couldn't determine Home Dir"));
+        }
+
+        let mut zcash_params = self.get_zcash_data_path().into_path_buf();
+        zcash_params.push("..");
+        if cfg!(target_os="macos") || cfg!(target_os="windows") {
+            zcash_params.push("ZcashParams");
+        } else {
+            zcash_params.push(".zcash-params");
+        }
+
+        match std::fs::create_dir_all(zcash_params.clone()) {
+            Ok(_) => Ok(zcash_params.into_boxed_path()),
+            Err(e) => {
+                eprintln!("Couldn't create zcash params directory\n{}", e);
+                Err(e)
+            }
+        }
     }
 
     pub fn get_wallet_path(&self) -> Box<Path> {
@@ -208,8 +259,8 @@ impl LightClientConfig {
         log_path.into_boxed_path()
     }
 
-    pub fn get_initial_state(&self, height: u64) -> Option<(u64, &str, &str)> {
-        checkpoints::get_closest_checkpoint(&self.chain_name, height)
+    pub fn get_initial_state(&self, height: u64) -> Option<(u64, String, String)> {
+        checkpoints::get_closest_checkpoint(&self.chain_name, self.get_coin_type(), height)
     }
 
     pub fn get_server_or_default(server: Option<String>) -> http::Uri {
@@ -226,49 +277,106 @@ impl LightClientConfig {
         }.parse().unwrap()
     }
 
+    pub fn set_coin_type(&mut self, param: u32) {
+        self.address_params.coin_type = Some(param);
+    }
+
+    pub fn set_hrp_sapling_extended_spending_key(&mut self, param: String) {
+        self.address_params.hrp_sapling_extended_spending_key = Some(param);
+    }
+
+    pub fn set_hrp_sapling_extended_full_viewing_key(&mut self, param: String) {
+        self.address_params.hrp_sapling_extended_full_viewing_key = Some(param);
+    }
+
+    pub fn set_hrp_sapling_payment_address(&mut self, param: String) {
+        self.address_params.hrp_sapling_payment_address = Some(param);
+    }
+
+    pub fn set_b58_pubkey_address_prefix(&mut self, param: [u8; 2]) {
+        self.address_params.b58_pubkey_address_prefix = Some(param);
+    }
+
+    pub fn set_b58_script_address_prefix(&mut self, param: [u8; 2]) {
+        self.address_params.b58_script_address_prefix = Some(param);
+    }
+
     pub fn get_coin_type(&self) -> u32 {
-        match &self.chain_name[..] {
-            "main"    => mainnet::COIN_TYPE,
-            "test"    => testnet::COIN_TYPE,
-            "regtest" => regtest::COIN_TYPE,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.coin_type {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::COIN_TYPE,
+                    "test"    => testnet::COIN_TYPE,
+                    "regtest" => regtest::COIN_TYPE,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn hrp_sapling_address(&self) -> &str {
-        match &self.chain_name[..] {
-            "main"    => mainnet::HRP_SAPLING_PAYMENT_ADDRESS,
-            "test"    => testnet::HRP_SAPLING_PAYMENT_ADDRESS,
-            "regtest" => regtest::HRP_SAPLING_PAYMENT_ADDRESS,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.hrp_sapling_payment_address {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_PAYMENT_ADDRESS,
+                    "test"    => testnet::HRP_SAPLING_PAYMENT_ADDRESS,
+                    "regtest" => regtest::HRP_SAPLING_PAYMENT_ADDRESS,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn hrp_sapling_private_key(&self) -> &str {
-        match &self.chain_name[..] {
-            "main"    => mainnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            "test"    => testnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            "regtest" => regtest::HRP_SAPLING_EXTENDED_SPENDING_KEY,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.hrp_sapling_extended_spending_key {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    "test"    => testnet::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    "regtest" => regtest::HRP_SAPLING_EXTENDED_SPENDING_KEY,
+                    c         => panic!("Unknown chain {}", c)
+                }
+        }
+    }
+
+    pub fn hrp_sapling_viewing_key(&self) -> &str {
+        match &self.address_params.hrp_sapling_extended_full_viewing_key {
+            Some(s) => s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    "test"    => testnet::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    "regtest" => regtest::HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
     pub fn base58_pubkey_address(&self) -> [u8; 2] {
-        match &self.chain_name[..] {
-            "main"    => mainnet::B58_PUBKEY_ADDRESS_PREFIX,
-            "test"    => testnet::B58_PUBKEY_ADDRESS_PREFIX,
-            "regtest" => regtest::B58_PUBKEY_ADDRESS_PREFIX,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.b58_pubkey_address_prefix {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::B58_PUBKEY_ADDRESS_PREFIX,
+                    "test"    => testnet::B58_PUBKEY_ADDRESS_PREFIX,
+                    "regtest" => regtest::B58_PUBKEY_ADDRESS_PREFIX,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
 
     pub fn base58_script_address(&self) -> [u8; 2] {
-        match &self.chain_name[..] {
-            "main"    => mainnet::B58_SCRIPT_ADDRESS_PREFIX,
-            "test"    => testnet::B58_SCRIPT_ADDRESS_PREFIX,
-            "regtest" => regtest::B58_SCRIPT_ADDRESS_PREFIX,
-            c         => panic!("Unknown chain {}", c)
+        match &self.address_params.b58_script_address_prefix {
+            Some(s) => *s,
+            None =>
+                match &self.chain_name[..] {
+                    "main"    => mainnet::B58_SCRIPT_ADDRESS_PREFIX,
+                    "test"    => testnet::B58_SCRIPT_ADDRESS_PREFIX,
+                    "regtest" => regtest::B58_SCRIPT_ADDRESS_PREFIX,
+                    c         => panic!("Unknown chain {}", c)
+                }
         }
     }
 
@@ -303,9 +411,20 @@ impl LightClient {
         let state = self.config.get_initial_state(height);
 
         match state {
-            Some((height, hash, tree)) => self.wallet.read().unwrap().set_initial_block(height.try_into().unwrap(), hash, tree),
+            Some((height, hash, tree)) => self.wallet.read().unwrap().set_initial_block(height.try_into().unwrap(), &hash, &tree),
             _ => true,
         };
+    }
+
+    fn write_file_if_not_exists(dir: &Box<Path>, name: &str, bytes: &[u8]) -> io::Result<()> {
+        let mut file_path = dir.to_path_buf();
+        file_path.push(name);
+        if !file_path.exists() {
+            let mut file = File::create(&file_path)?;
+            file.write_all(bytes)?;
+        }
+
+        Ok(())
     }
 
     #[cfg(feature = "embed_params")]
@@ -337,6 +456,27 @@ impl LightClient {
 
         if self.sapling_spend.is_empty() {
             self.sapling_spend.extend_from_slice(sapling_spend);
+        }
+
+        // Ensure that the sapling params are stored on disk properly as well. Only on desktop
+        if cfg!(all(not(target_os="ios"), not(target_os="android"))) {
+            match self.config.get_zcash_params_path() {
+                Ok(zcash_params_dir) => {
+                    // Create the sapling output and spend params files
+                    match LightClient::write_file_if_not_exists(&zcash_params_dir, "sapling-output.params", &self.sapling_output) {
+                        Ok(_) => {},
+                        Err(e) => eprintln!("Warning: Couldn't write the output params!\n{}", e)
+                    };
+
+                    match LightClient::write_file_if_not_exists(&zcash_params_dir, "sapling-spend.params", &self.sapling_spend) {
+                        Ok(_) => {},
+                        Err(e) => eprintln!("Warning: Couldn't write the output params!\n{}", e)
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            };
         }
 
         Ok(())
@@ -477,12 +617,6 @@ impl LightClient {
         info!("Read wallet with birthday {}", lc.wallet.read().unwrap().get_first_tx_block());
         info!("Created LightClient to {}", &config.server);
 
-        if crate::lightwallet::bugs::BugBip39Derivation::has_bug(&lc) {
-            let m = format!("WARNING!!!\nYour wallet has a bip39derivation bug that's showing incorrect addresses.\nPlease run 'fixbip39bug' to automatically fix the address derivation in your wallet!\nPlease see: https://github.com/adityapk00/zecwallet-light-cli/blob/master/bip39bug.md");
-             info!("{}", m);
-             println!("{}", m);
-        }
-
         Ok(lc)
     }
 
@@ -577,11 +711,12 @@ impl LightClient {
         let wallet = self.wallet.read().unwrap();
         // Go over all z addresses
         let z_keys = wallet.get_z_private_keys().iter()
-            .filter( move |(addr, _)| address.is_none() || address.as_ref() == Some(addr))
-            .map( |(addr, pk)|
+            .filter( move |(addr, _, _)| address.is_none() || address.as_ref() == Some(addr))
+            .map( |(addr, pk, vk)|
                 object!{
                     "address"     => addr.clone(),
-                    "private_key" => pk.clone()
+                    "private_key" => pk.clone(),
+                    "viewing_key" => vk.clone(),
                 }
             ).collect::<Vec<JsonValue>>();
 
@@ -609,9 +744,7 @@ impl LightClient {
         let wallet = self.wallet.read().unwrap();
 
         // Collect z addresses
-        let z_addresses = wallet.zaddress.read().unwrap().iter().map( |ad| {
-            encode_payment_address(self.config.hrp_sapling_address(), &ad)
-        }).collect::<Vec<String>>();
+        let z_addresses = wallet.get_all_zaddresses();
 
         // Collect t addresses
         let t_addresses = wallet.taddresses.read().unwrap().iter().map( |a| a.clone() )
@@ -627,12 +760,13 @@ impl LightClient {
         let wallet = self.wallet.read().unwrap();
 
         // Collect z addresses
-        let z_addresses = wallet.zaddress.read().unwrap().iter().map( |ad| {
-            let address = encode_payment_address(self.config.hrp_sapling_address(), &ad);
+        let z_addresses = wallet.get_all_zaddresses().iter().map(|zaddress| {
             object!{
-                "address" => address.clone(),
-                "zbalance" => wallet.zbalance(Some(address.clone())),
-                "verified_zbalance" => wallet.verified_zbalance(Some(address)),
+                "address" => zaddress.clone(),
+                "zbalance" => wallet.zbalance(Some(zaddress.clone())),
+                "verified_zbalance"  => wallet.verified_zbalance(Some(zaddress.clone())),
+                "spendable_zbalance" => wallet.spendable_zbalance(Some(zaddress.clone())),
+                "unverified_zbalance"   => wallet.unverified_zbalance(Some(zaddress.clone()))
             }
         }).collect::<Vec<JsonValue>>();
 
@@ -650,6 +784,8 @@ impl LightClient {
         object!{
             "zbalance"           => wallet.zbalance(None),
             "verified_zbalance"  => wallet.verified_zbalance(None),
+            "spendable_zbalance" => wallet.spendable_zbalance(None),
+            "unverified_zbalance"   => wallet.unverified_zbalance(None),
             "tbalance"           => wallet.tbalance(None),
             "z_addresses"        => z_addresses,
             "t_addresses"        => t_addresses,
@@ -769,23 +905,40 @@ impl LightClient {
         let mut spent_notes  : Vec<JsonValue> = vec![];
         let mut pending_notes: Vec<JsonValue> = vec![];
 
+        let anchor_height: i32 = self.wallet.read().unwrap().get_anchor_height() as i32;
+
         {
-            // Collect Sapling notes
             let wallet = self.wallet.read().unwrap();
+
+            // First, collect all extfvk's that are spendable (i.e., we have the private key)
+            let spendable_address: HashSet<String> = wallet.get_all_zaddresses().iter()
+                .filter(|address| wallet.have_spending_key_for_zaddress(address))
+                .map(|address| address.clone())
+                .collect();
+
+            // Collect Sapling notes
             wallet.txs.read().unwrap().iter()
                 .flat_map( |(txid, wtx)| {
+                    let spendable_address = spendable_address.clone();
                     wtx.notes.iter().filter_map(move |nd|
                         if !all_notes && nd.spent.is_some() {
                             None
                         } else {
+                            let address = LightWallet::note_address(self.config.hrp_sapling_address(), nd);
+                            let spendable = address.is_some() &&
+                                                    spendable_address.contains(&address.clone().unwrap()) &&
+                                                    wtx.block <= anchor_height && nd.spent.is_none() && nd.unconfirmed_spent.is_none();
+
                             Some(object!{
                                 "created_in_block"   => wtx.block,
                                 "datetime"           => wtx.datetime,
                                 "created_in_txid"    => format!("{}", txid),
                                 "value"              => nd.note.value,
                                 "is_change"          => nd.is_change,
-                                "address"            => LightWallet::note_address(self.config.hrp_sapling_address(), nd),
+                                "address"            => address,
+                                "spendable"          => spendable,
                                 "spent"              => nd.spent.map(|spent_txid| format!("{}", spent_txid)),
+                                "spent_at_height"    => nd.spent_at_height.map(|h| format!("{}", h)),
                                 "unconfirmed_spent"  => nd.unconfirmed_spent.map(|spent_txid| format!("{}", spent_txid)),
                             })
                         }
@@ -862,7 +1015,7 @@ impl LightClient {
         }
     }
 
-    pub fn do_list_transactions(&self) -> JsonValue {
+    pub fn do_list_transactions(&self, include_memo_hex: bool) -> JsonValue {
         let wallet = self.wallet.read().unwrap();
 
         // Create a list of TransactionItems from wallet txns
@@ -883,22 +1036,39 @@ impl LightClient {
                 let mut incoming_json = v.notes.iter()
                     .filter( |nd| !nd.is_change )
                     .enumerate()
-                    .map ( |(_i, nd)|
-                        object! {
+                    .map ( |(_i, nd)| {
+                        let mut o = object! {
                             "address"      => LightWallet::note_address(self.config.hrp_sapling_address(), nd),
                             "value"       => nd.note.value as i64,
                             "memo"         => LightWallet::memo_str(&nd.memo),
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", match &nd.memo {
+                                Some(m) => hex::encode(m.as_bytes()),
+                                _ => "".to_string(),
+                            }).unwrap();
+                        }
+
+                        return o;
                     })
                     .collect::<Vec<JsonValue>>();
 
                 let incoming_t_json = v.utxos.iter()
                     .filter(|u| !change_addresses.contains(&u.address))
-                    .map( |uo|
-                        object! {
+                    .map( |uo| {
+                        let mut o = object! {
                             "address"       => uo.address.clone(),
                             "value"         => uo.value.clone() as i64,
                             "memo"          => None::<String>,
-                        })
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", None::<String>).unwrap();
+                        }
+
+                        return o;
+                    })
                     .collect::<Vec<JsonValue>>();
 
                 for json in incoming_t_json {
@@ -909,22 +1079,39 @@ impl LightClient {
                 let mut incoming_change_json = v.notes.iter()
                     .filter( |nd| nd.is_change )
                     .enumerate()
-                    .map ( |(_i, nd)|
-                        object! {
+                    .map ( |(_i, nd)| {
+                        let mut o = object! {
                             "address"      => LightWallet::note_address(self.config.hrp_sapling_address(), nd),
                             "value"       => nd.note.value as i64,
                             "memo"         => LightWallet::memo_str(&nd.memo),
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", match &nd.memo {
+                                Some(m) => hex::encode(m.as_bytes()),
+                                _ => "".to_string(),
+                            }).unwrap();
+                        }
+
+                        return o;
                     })
                     .collect::<Vec<JsonValue>>();
 
                 let incoming_t_change_json = v.utxos.iter()
                     .filter(|u| change_addresses.contains(&u.address))
-                    .map( |uo|
-                        object! {
+                    .map( |uo| {
+                        let mut o = object! {
                             "address"       => uo.address.clone(),
                             "value"         => uo.value.clone() as i64,
                             "memo"          => None::<String>,
-                        })
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", None::<String>).unwrap();
+                        }
+
+                        return o;
+                    })
                     .collect::<Vec<JsonValue>>();
 
                 for json in incoming_t_change_json {
@@ -933,21 +1120,35 @@ impl LightClient {
 
                 // Collect outgoing metadata
                 let outgoing_json = v.outgoing_metadata.iter()
-                    .map(|om|
-                        object!{
+                    .map(|om| {
+                        let mut o = object!{
                             "address" => om.address.clone(),
                             "value"   => om.value,
                             "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", hex::encode(om.memo.as_bytes())).unwrap();
+                        }
+
+                        return o;
                     })
                     .collect::<Vec<JsonValue>>();
 
                 // Collect outgoing metadata change
                 let outgoing_change_json = v.outgoing_metadata_change.iter()
-                    .map(|om|
-                        object!{
+                    .map(|om| {
+                        let mut o = object!{
                             "address" => om.address.clone(),
                             "value"   => om.value,
                             "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        };
+
+                        if include_memo_hex {
+                            o.insert("memohex", hex::encode(om.memo.as_bytes())).unwrap();
+                        }
+
+                        return o;
                     })
                     .collect::<Vec<JsonValue>>();
 
@@ -979,12 +1180,20 @@ impl LightClient {
 
             // Collect outgoing metadata
             let outgoing_json = wtx.outgoing_metadata.iter()
-                .map(|om|
-                    object!{
+                .map(|om| {
+                    let mut o = object!{
                         "address" => om.address.clone(),
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
-                }).collect::<Vec<JsonValue>>();
+                    };
+
+                    if include_memo_hex {
+                        o.insert("memohex", hex::encode(om.memo.as_bytes())).unwrap();
+                    }
+
+                    return o;
+                })
+                .collect::<Vec<JsonValue>>();
 
             object! {
                 "block_height" => wtx.block,
@@ -1017,7 +1226,7 @@ impl LightClient {
         let new_address = {
             let wallet = self.wallet.write().unwrap();
 
-            match addr_type {
+            let addr = match addr_type {
                 "z" => wallet.add_zaddr(),
                 "t" => wallet.add_taddr(),
                 _   => {
@@ -1025,13 +1234,84 @@ impl LightClient {
                     error!("{}", e);
                     return Err(e);
                 }
+            };
+
+            if addr.starts_with("Error") {
+                let e = format!("Error creating new address: {}", addr);
+                    error!("{}", e);
+                    return Err(e);
             }
+
+            addr
         };
 
         self.do_save()?;
 
         Ok(array![new_address])
     }
+
+    /// Convinence function to determine what type of key this is and import it
+    pub fn do_import_key(&self, key: String, birthday: u64) -> Result<JsonValue, String> {
+        if key.starts_with(self.config.hrp_sapling_private_key()) {
+            self.do_import_sk(key, birthday)
+        } else if key.starts_with(self.config.hrp_sapling_viewing_key()) {
+            self.do_import_vk(key, birthday)
+        } else {
+            Err(format!("'{}' was not recognized as either a spending key or a viewing key because it didn't start with either '{}' or '{}'",
+                key, self.config.hrp_sapling_private_key(), self.config.hrp_sapling_viewing_key()))
+        }
+    }
+
+    /// Import a new private key
+    pub fn do_import_sk(&self, sk: String, birthday: u64) -> Result<JsonValue, String> {
+        if !self.wallet.read().unwrap().is_unlocked_for_spending() {
+            error!("Wallet is locked");
+            return Err("Wallet is locked".to_string());
+        }
+
+        let new_address = {
+            let mut wallet = self.wallet.write().unwrap();
+
+            let addr = wallet.add_imported_sk(sk, birthday);
+            if addr.starts_with("Error") {
+                let e = format!("Error creating new address{}", addr);
+                    error!("{}", e);
+                    return Err(e);
+            }
+
+            addr
+        };
+
+        self.do_save()?;
+
+        Ok(array![new_address])
+    }
+
+    /// Import a new viewing key
+    pub fn do_import_vk(&self, vk: String, birthday: u64) -> Result<JsonValue, String> {
+        if !self.wallet.read().unwrap().is_unlocked_for_spending() {
+            error!("Wallet is locked");
+            return Err("Wallet is locked".to_string());
+        }
+
+        let new_address = {
+            let mut wallet = self.wallet.write().unwrap();
+
+            let addr = wallet.add_imported_vk(vk, birthday);
+            if addr.starts_with("Error") {
+                let e = format!("Error creating new address{}", addr);
+                    error!("{}", e);
+                    return Err(e);
+            }
+
+            addr
+        };
+
+        self.do_save()?;
+
+        Ok(array![new_address])
+    }
+
 
     pub fn clear_state(&self) {
         // First, clear the state from the wallet
@@ -1377,20 +1657,20 @@ impl LightClient {
 
         info!("Creating transaction");
 
-        let rawtx = self.wallet.write().unwrap().send_to_address(
-            u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
-            &self.sapling_spend, &self.sapling_output,
-            from, addrs, fee
-        );
+        let result = {
+            let _lock = self.sync_lock.lock().unwrap();
+
+            self.wallet.write().unwrap().send_to_address(
+                u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
+                &self.sapling_spend, &self.sapling_output,
+                from, addrs, fee,
+                |txbytes| broadcast_raw_tx(&self.get_server_uri(), txbytes)
+            )
+        };
 
         info!("Transaction Complete");
 
-
-
-        match rawtx {
-            Ok(txbytes)   => broadcast_raw_tx(&self.get_server_uri(), txbytes),
-            Err(e)        => Err(format!("Error: No Tx to broadcast. Error was: {}", e))
-        }
+        result.map(|(txid, _)| txid)
     }
 }
 
@@ -1431,6 +1711,14 @@ pub mod tests {
         lc.wallet.write().unwrap().unlock("password".to_string()).unwrap();
 
         assert!(!lc.do_new_address("z").is_err());
+    }
+
+    #[test]
+    pub fn test_bad_import() {
+        let lc = super::LightClient::unconnected(TEST_SEED.to_string(), None).unwrap();
+
+        assert!(lc.do_import_sk("bad_priv_key".to_string(), 0).is_err());
+        assert!(lc.do_import_vk("bad_view_key".to_string(), 0).is_err());
     }
 
     #[test]

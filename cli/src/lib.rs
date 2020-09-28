@@ -5,7 +5,7 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use log::{info, error};
 
 use zecwalletlitelib::{commands,
-    lightclient::{LightClient, LightClientConfig},
+    lightclient::{LightClient, LightClientConfig, AddressParameters},
 };
 
 pub mod version;
@@ -243,6 +243,7 @@ pub fn attempt_recover_seed(password: Option<String>) {
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 0,
         data_dir: None,
+        address_params: AddressParameters::new()
     };
 
     match LightClient::attempt_recover_seed(&config, password) {
