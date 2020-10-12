@@ -4,7 +4,6 @@ use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::io::{Error, ErrorKind};
-use std::convert::TryFrom;
 
 use threadpool::ThreadPool;
 use std::sync::mpsc::{channel};
@@ -35,7 +34,6 @@ use zcash_primitives::{
     jubjub::fs::Fs,
     block::BlockHash,
     serialize::{Vector},
-    consensus::BranchId,
     transaction::{
         builder::{Builder},
         components::{Amount, OutPoint, TxOut}, //components::amount::DEFAULT_FEE,
@@ -2255,7 +2253,7 @@ impl LightWallet {
 
         println!("{}: Building transaction", now() - start_time);
         let (tx, _) = match builder.build(
-            BranchId::try_from(consensus_branch_id).unwrap(),
+            consensus_branch_id,
             &prover::InMemTxProver::new(spend_params, output_params),
         ) {
             Ok(res) => res,
