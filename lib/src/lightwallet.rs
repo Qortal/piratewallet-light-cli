@@ -2080,7 +2080,12 @@ impl LightWallet {
                     let extsk = self.zkeys.read().unwrap().iter()
                         .find(|zk| zk.extfvk == note.extfvk)
                         .and_then(|zk| zk.extsk.clone());
-                    SpendableNote::from(txid, note, anchor_offset, &extsk)
+                        //filter only on Notes with a matching from address
+                    if from == LightWallet::note_address(self.config.hrp_sapling_address(), note).unwrap() {
+                        SpendableNote::from(txid, note, anchor_offset, &extsk)
+                    }   else {
+                        None
+                    }
                 }
             }).collect();
 
