@@ -205,17 +205,17 @@ struct BalanceCommand {}
 impl Command for BalanceCommand {
     fn help(&self) -> String {
         let mut h = vec![];
-        h.push("Show the current ZEC balance in the wallet");
+        h.push("Show the current ARRR balance in the wallet");
         h.push("Usage:");
         h.push("balance");
         h.push("");
-        h.push("Transparent and Shielded balances, along with the addresses they belong to are displayed");
+        h.push("Shielded balances, along with the addresses they belong to are displayed");
 
         h.join("\n")
     }
 
     fn short_help(&self) -> String {
-        "Show the current ZEC balance in the wallet".to_string()
+        "Show the current ARRR balance in the wallet".to_string()
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
@@ -250,14 +250,14 @@ impl Command for ExportCommand {
     fn help(&self) -> String {
         let mut h = vec![];
         h.push("Export private key for an individual wallet addresses.");
-        h.push("Note: To backup the whole wallet, use the 'seed' command insted");
+        h.push("Note: To backup the whole wallet, use the 'seed' command instead");
         h.push("Usage:");
-        h.push("export [t-address or z-address]");
+        h.push("export [z-address]");
         h.push("");
         h.push("If no address is passed, private key for all addresses in the wallet are exported.");
         h.push("");
         h.push("Example:");
-        h.push("export ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d");
+        h.push("export zs1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d");
 
         h.join("\n")
     }
@@ -284,7 +284,7 @@ impl Command for EncryptCommand {
     fn help(&self) -> String {
         let mut h = vec![];
         h.push("Encrypt the wallet with a password");
-        h.push("Note 1: This will encrypt the seed and the sapling and transparent private keys.");
+        h.push("Note 1: This will encrypt the seed and the private keys.");
         h.push("        Use 'unlock' to temporarily unlock the wallet for spending or 'decrypt' ");
         h.push("        to permanatly remove the encryption");
         h.push("Note 2: If you forget the password, the only way to recover the wallet is to restore");
@@ -324,7 +324,7 @@ impl Command for DecryptCommand {
     fn help(&self) -> String {
         let mut h = vec![];
         h.push("Completely remove wallet encryption, storing the wallet in plaintext on disk");
-        h.push("Note 1: This will decrypt the seed and the sapling and transparent private keys and store them on disk.");
+        h.push("Note 1: This will decrypt the seed and the private keys and store them on disk.");
         h.push("        Use 'unlock' to temporarily unlock the wallet for spending");
         h.push("Note 2: If you've forgotten the password, the only way to recover the wallet is to restore");
         h.push("        from the seed phrase.");
@@ -444,7 +444,7 @@ struct SendCommand {}
 impl Command for SendCommand {
     fn help(&self) -> String {
         let mut h = vec![];
-        h.push("Send ZEC to a given address(es)");
+        h.push("Send ARRR to a given address(es)");
         h.push("Usage:");
         h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...]}");
         h.push("");
@@ -456,7 +456,7 @@ impl Command for SendCommand {
     }
 
     fn short_help(&self) -> String {
-        "Send ZEC to the given address".to_string()
+        "Send ARRR to the given address".to_string()
     }
 
     fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {

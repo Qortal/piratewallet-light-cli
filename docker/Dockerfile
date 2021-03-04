@@ -37,7 +37,7 @@ RUN cd /opt && wget https://download.libsodium.org/libsodium/releases/libsodium-
 RUN apt install -y git
 
 # Cargo fetch the dependencies so we don't download them over and over again
-RUN cd /tmp && git clone https://github.com/adityapk00/zecwallet-light-cli.git && \
-    cd zecwallet-light-cli && \
+RUN cd /tmp && git clone https://github.com/piratenetwork/piratewallet-light-cli.git && \
+    cd piratewallet-light-cli && \
     cargo fetch && \
-    cd /tmp && rm -rf zecwallet-light-cli
+    cd /tmp && rm -rf piratewallet-light-cli

@@ -172,13 +172,13 @@ impl LightClientConfig {
         } else {
             if cfg!(target_os="macos") || cfg!(target_os="windows") {
                 zcash_data_location = dirs::data_dir().expect("Couldn't determine app data directory!");
-                zcash_data_location.push("Zero");
+                zcash_data_location.push("Pirate");
             } else {
                 if dirs::home_dir().is_none() {
                     info!("Couldn't determine home dir!");
                 }
                 zcash_data_location = dirs::home_dir().expect("Couldn't determine home directory!");
-                zcash_data_location.push(".zero");
+                zcash_data_location.push(".pirate");
             };
 
             match &self.chain_name[..] {
@@ -770,7 +770,7 @@ impl LightClient {
             }
         }).collect::<Vec<JsonValue>>();
 
-        // Collect t addresses
+        // Collect t addresses - not required for pirate
         let t_addresses = wallet.taddresses.read().unwrap().iter().map( |address| {
             // Get the balance for this address
             let balance = wallet.tbalance(Some(address.clone()));
