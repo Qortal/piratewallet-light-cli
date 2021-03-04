@@ -36,9 +36,9 @@ use crate::ANCHOR_OFFSET;
 
 mod checkpoints;
 
-pub const DEFAULT_SERVER: &str = "https://lightwalletd.zeromachine.io:443";
-pub const WALLET_NAME: &str    = "zerowallet-light-wallet.dat";
-pub const LOGFILE_NAME: &str   = "zerowallet-light-wallet.debug.log";
+pub const DEFAULT_SERVER: &str = "https://lightd.pirate.black:443";
+pub const WALLET_NAME: &str    = "arrr-light-wallet.dat";
+pub const LOGFILE_NAME: &str   = "debug-arrr-light-wallet.log";
 
 #[derive(Clone, Debug)]
 pub struct WalletStatus {
@@ -71,7 +71,7 @@ pub struct AddressParameters {
 impl AddressParameters {
     pub fn new() -> Self {
         AddressParameters {
-            coin_type: Some(323), //Zero Default COIN_TYPE
+            coin_type: Some(141), //Pirate Default COIN_TYPE
             hrp_sapling_extended_spending_key: None,
             hrp_sapling_extended_full_viewing_key: None,
             hrp_sapling_payment_address: None,
