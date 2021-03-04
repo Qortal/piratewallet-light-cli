@@ -25,7 +25,7 @@ pub fn get_closest_checkpoint(chain_name: &str, coin_type: u32, height: u64) -> 
 
     let mut checkpoints: Vec<(u64, String, String)> = Vec::new();
 
-    let cps = match reqwest::blocking::get("https://raw.githubusercontent.com/zerocurrencycoin/zerowallet-light-cli/merge_upstream/coin-checkpoint.json") {
+    let cps = match reqwest::blocking::get("https://raw.githubusercontent.com/piratenetwork/piratewallet-light-cli/merge_upstream/coin-checkpoint.json") {
         Ok(s) => {
             match s.json::<CoinList>() {
                 Ok(j) => Some(j),
