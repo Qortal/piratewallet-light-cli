@@ -1478,10 +1478,26 @@ impl LightWallet {
         {
             let mut blks = self.blocks.write().unwrap();
 
-            while blks.last().unwrap().height >= at_height {
-                blks.pop();
-                num_invalidated += 1;
+            let mut checking = true;
+
+            while checking {
+
+                if  blks.last().is_none() {
+                    return num_invalidated as u64;
+                }
+
+                if blks.last().unwrap().height >= at_height {
+                    blks.pop();
+                    num_invalidated += 1;
+                } else {
+                    checking = false;
+                }
             }
+
+            // while blks.last().unwrap().height >= at_height {
+            //     blks.pop();
+            //     num_invalidated += 1;
+            // }
         }
 
         // Next, remove entire transactions
