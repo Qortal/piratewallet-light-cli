@@ -116,7 +116,7 @@ impl BugBip39Derivation {
         }
 
         for _ in 1..num_taddrs {
-            wallet.add_taddr();
+            // wallet.add_taddr();
         }
 
         let r = object!{

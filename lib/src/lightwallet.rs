@@ -385,8 +385,8 @@ impl LightWallet {
             nonce:       nonce,
             seed:        seed_bytes,
             zkeys:       Arc::new(RwLock::new(zkeys)),
-            tkeys:       Arc::new(RwLock::new(tkeys)),
-            taddresses:  Arc::new(RwLock::new(taddresses)),
+            tkeys:       Arc::new(RwLock::new(vec![])),
+            taddresses:  Arc::new(RwLock::new(vec![])),
             blocks:      Arc::new(RwLock::new(blocks)),
             txs:         Arc::new(RwLock::new(txs)),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
@@ -870,17 +870,17 @@ impl LightWallet {
 
         // Transparent keys
         let mut tkeys = vec![];
-        for pos in 0..self.taddresses.read().unwrap().len() {
-            let sk = LightWallet::get_taddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos as u32);
-            let address = self.address_from_sk(&sk);
-
-            if address != self.taddresses.read().unwrap()[pos] {
-                return Err(io::Error::new(ErrorKind::InvalidData,
-                    format!("taddress mismatch at {}. {} vs {}", pos, address, self.taddresses.read().unwrap()[pos])));
-            }
-
-            tkeys.push(sk);
-        }
+        // for pos in 0..self.taddresses.read().unwrap().len() {
+        //     let sk = LightWallet::get_taddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos as u32);
+        //     let address = self.address_from_sk(&sk);
+        //
+        //     if address != self.taddresses.read().unwrap()[pos] {
+        //         return Err(io::Error::new(ErrorKind::InvalidData,
+        //             format!("taddress mismatch at {}. {} vs {}", pos, address, self.taddresses.read().unwrap()[pos])));
+        //     }
+        //
+        //     tkeys.push(sk);
+        // }
 
         // Go over the zkeys, and add the spending keys again
         self.zkeys.write().unwrap().iter_mut().map(|zk| {
@@ -1158,7 +1158,7 @@ impl LightWallet {
                     // If the wallet is locked, this is a no-op. That is fine, since we really
                     // need to only add new addresses when restoring a new wallet, when it will not be locked.
                     // Also, if it is locked, the user can't create new addresses anyway.
-                    self.add_taddr();
+                    // self.add_taddr();
                 }
             }
         }
