@@ -46,33 +46,33 @@ serde_derive = "1.0"
 reqwest = { version = "0.10.8", features = ["blocking", "json"] }
 
 [dependencies.bellman]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 default-features = false
 features = ["groth16", "multicore"]
 
 [dependencies.pairing]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 
 [dependencies.zcash_client_backend]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 default-features = false
 
 [dependencies.zcash_primitives]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 default-features = false
 features = ["transparent-inputs"]
 
 [dependencies.zcash_proofs]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 default-features = false
 
 [dependencies.ff]
-git = "https://github.com/zerocurrencycoin/librustzcash.git"
+git = "https://github.com/piratenetwork/librustzcash.git"
 rev = "2981c4d2860f7cd73282fed885daac0323ff0280"
 features = ["ff_derive"]
 
