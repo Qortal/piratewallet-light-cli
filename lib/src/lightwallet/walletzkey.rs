@@ -9,7 +9,7 @@ use sodiumoxide::crypto::secretbox;
 use zcash_primitives::{
     serialize::{Vector, Optional},
     zip32::{ExtendedFullViewingKey, ExtendedSpendingKey},
-    primitives::{PaymentAddress},
+    primitives::{Diversifier, PaymentAddress},
 };
 
 use crate::lightclient::{LightClientConfig};
@@ -22,13 +22,21 @@ pub enum WalletZKeyType {
     ImportedViewKey = 2
 }
 
+// A struct that holds diversified addresses
+#[derive(Clone, Debug, PartialEq)]
+pub struct WalletDiversifiers {
+  pub extfvk: ExtendedFullViewingKey,
+  pub diversifier: Diversifier,
+  pub zaddress: String
+}
+
 // A struct that holds z-address private keys or view keys
 #[derive(Clone, Debug, PartialEq)]
 pub struct WalletZKey {
   pub(super) keytype: WalletZKeyType,
   locked: bool,
   pub(super) extsk: Option<ExtendedSpendingKey>,
-  pub(super) extfvk: ExtendedFullViewingKey,
+  pub extfvk: ExtendedFullViewingKey,
   pub(super) zaddress: PaymentAddress<Bls12>,
 
   // If this is a HD key, what is the key number

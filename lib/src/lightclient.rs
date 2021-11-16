@@ -1,4 +1,5 @@
 use crate::lightwallet::LightWallet;
+use crate::lightwallet::walletzkey::WalletDiversifiers;
 
 use rand::{rngs::OsRng, seq::SliceRandom};
 
@@ -6,7 +7,7 @@ use std::sync::{Arc, RwLock, Mutex, mpsc::channel};
 use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 use std::path::{Path, PathBuf};
 use std::fs::File;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap};
 use std::cmp::{max, min};
 use std::io;
 use std::io::prelude::*;
@@ -584,6 +585,33 @@ impl LightClient {
             sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
         };
 
+        //Load Diversified Addresses from SaplingNotes
+        {
+            let note_wallet = lc.wallet.write().unwrap();
+            let txs = note_wallet.txs.read().unwrap();
+            for (_t, tx) in txs.iter() {
+                for n in tx.notes.iter() {
+                    match LightWallet::note_address(lc.config.hrp_sapling_address(), &n) {
+                        Some(a) => {
+                            //Add diversified addresses to address list
+                            let mut zaddrs = note_wallet.zaddresses.write().unwrap();
+                            let mut found = false;
+                            for z in zaddrs.iter() {
+                                if z.zaddress == a {
+                                    found = true;
+                                }
+                            }
+
+                            if !found {
+                                zaddrs.push(WalletDiversifiers{extfvk: n.extfvk.clone(), diversifier: n.diversifier.clone(), zaddress: a});
+                            }
+                        },
+                        None => {}
+                    }
+                }
+            }
+        }
+        
         #[cfg(feature = "embed_params")]
         lc.read_sapling_params();
 
@@ -610,6 +638,33 @@ impl LightClient {
             sync_lock       : Mutex::new(()),
             sync_status     : Arc::new(RwLock::new(WalletStatus::new())),
         };
+
+        //Load Diversified Addresses from SaplingNotes
+        {
+            let note_wallet = lc.wallet.write().unwrap();
+            let txs = note_wallet.txs.read().unwrap();
+            for (_t, tx) in txs.iter() {
+                for n in tx.notes.iter() {
+                    match LightWallet::note_address(lc.config.hrp_sapling_address(), &n) {
+                        Some(a) => {
+                            //Add diversified addresses to address list
+                            let mut zaddrs = note_wallet.zaddresses.write().unwrap();
+                            let mut found = false;
+                            for z in zaddrs.iter() {
+                                if z.zaddress == a {
+                                    found = true;
+                                }
+                            }
+
+                            if !found {
+                                zaddrs.push(WalletDiversifiers{extfvk: n.extfvk.clone(), diversifier: n.diversifier.clone(), zaddress: a});
+                            }
+                        },
+                        None => {}
+                    }
+                }
+            }
+        }
 
         #[cfg(feature = "embed_params")]
         lc.read_sapling_params();
@@ -905,29 +960,24 @@ impl LightClient {
         let mut spent_notes  : Vec<JsonValue> = vec![];
         let mut pending_notes: Vec<JsonValue> = vec![];
 
-        let anchor_height: i32 = self.wallet.read().unwrap().get_anchor_height() as i32;
-
         {
             let wallet = self.wallet.read().unwrap();
-
-            // First, collect all extfvk's that are spendable (i.e., we have the private key)
-            let spendable_address: HashSet<String> = wallet.get_all_zaddresses().iter()
-                .filter(|address| wallet.have_spending_key_for_zaddress(address))
-                .map(|address| address.clone())
-                .collect();
+            let all_zkeys = wallet.zkeys.read().unwrap();
 
             // Collect Sapling notes
             wallet.txs.read().unwrap().iter()
                 .flat_map( |(txid, wtx)| {
-                    let spendable_address = spendable_address.clone();
+                    let zkeys = all_zkeys.clone();
                     wtx.notes.iter().filter_map(move |nd|
                         if !all_notes && nd.spent.is_some() {
                             None
                         } else {
                             let address = LightWallet::note_address(self.config.hrp_sapling_address(), nd);
-                            let spendable = address.is_some() &&
-                                                    spendable_address.contains(&address.clone().unwrap()) &&
-                                                    wtx.block <= anchor_height && nd.spent.is_none() && nd.unconfirmed_spent.is_none();
+
+                            let spendable = match zkeys.iter().find(|zk| zk.extfvk == nd.extfvk) {
+                                None => false,
+                                Some(zk) => zk.have_spending_key()
+                            };
 
                             Some(object!{
                                 "created_in_block"   => wtx.block,

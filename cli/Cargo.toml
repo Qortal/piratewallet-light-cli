@@ -1,6 +1,6 @@
 [package]
 name = "zecwallet-cli"
-version = "1.4.1"
+version = "1.4.2"
 edition = "2018"
 
 [dependencies]
@@ -15,4 +15,3 @@ byteorder = "1"
 tiny-bip39 = "0.6.2"
 
 zecwalletlitelib = { path = "../lib/" }
-

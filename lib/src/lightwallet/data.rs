@@ -62,7 +62,7 @@ impl BlockData {
 
 pub struct SaplingNoteData {
     pub(super) account: usize,
-    pub(super) extfvk: ExtendedFullViewingKey, // Technically, this should be recoverable from the account number, but we're going to refactor this in the future, so I'll write it again here.
+    pub extfvk: ExtendedFullViewingKey, // Technically, this should be recoverable from the account number, but we're going to refactor this in the future, so I'll write it again here.
     pub diversifier: Diversifier,
     pub note: Note<Bls12>,
     pub(super) witnesses: Vec<IncrementalWitness<Node>>,

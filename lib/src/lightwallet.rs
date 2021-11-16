@@ -55,11 +55,11 @@ mod extended_key;
 mod utils;
 mod address;
 mod prover;
-mod walletzkey;
+pub mod walletzkey;
 
 use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata};
 use extended_key::{KeyIndex, ExtendedPrivKey};
-use walletzkey::{WalletZKey, WalletZKeyType};
+use walletzkey::{WalletZKey, WalletZKeyType, WalletDiversifiers};
 
 pub const MAX_REORG: usize = 100;
 
@@ -116,7 +116,8 @@ pub struct LightWallet {
 
     // List of keys, actually in this wallet. This is a combination of HD keys derived from the seed,
     // viewing keys and imported spending keys.
-    zkeys: Arc<RwLock<Vec<WalletZKey>>>,
+    pub zkeys: Arc<RwLock<Vec<WalletZKey>>>,
+    pub zaddresses: Arc<RwLock<Vec<WalletDiversifiers>>>,
 
     // Transparent keys. If the wallet is locked, then the secret keys will be encrypted,
     // but the addresses will be present.
@@ -229,6 +230,7 @@ impl LightWallet {
             nonce:       vec![],
             seed:        seed_bytes,
             zkeys:       Arc::new(RwLock::new(vec![WalletZKey::new_hdkey(hdkey_num, extsk)])),
+            zaddresses:  Arc::new(RwLock::new(vec![])),
             tkeys:       Arc::new(RwLock::new(vec![])),
             taddresses:  Arc::new(RwLock::new(vec![])),
             blocks:      Arc::new(RwLock::new(vec![])),
@@ -345,18 +347,18 @@ impl LightWallet {
             Vector::read(&mut reader, |r| WalletZKey::read(r))?
         };
 
-        let tkeys = Vector::read(&mut reader, |r| {
+        let _tkeys = Vector::read(&mut reader, |r| {
             let mut tpk_bytes = [0u8; 32];
             r.read_exact(&mut tpk_bytes)?;
             secp256k1::SecretKey::from_slice(&tpk_bytes).map_err(|e| io::Error::new(ErrorKind::InvalidData, e))
         })?;
 
-        let taddresses = if version >= 4 {
+        let _taddresses = if version >= 4 {
             // Read the addresses
             Vector::read(&mut reader, |r| utils::read_string(r))?
         } else {
             // Calculate the addresses
-            tkeys.iter().map(|sk| LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), sk)).collect()
+            _tkeys.iter().map(|sk| LightWallet::address_from_prefix_sk(&config.base58_pubkey_address(), sk)).collect()
         };
 
         let blocks = Vector::read(&mut reader, |r| BlockData::read(r))?;
@@ -385,6 +387,7 @@ impl LightWallet {
             nonce:       nonce,
             seed:        seed_bytes,
             zkeys:       Arc::new(RwLock::new(zkeys)),
+            zaddresses:  Arc::new(RwLock::new(vec![])),
             tkeys:       Arc::new(RwLock::new(vec![])),
             taddresses:  Arc::new(RwLock::new(vec![])),
             blocks:      Arc::new(RwLock::new(blocks)),
@@ -753,9 +756,23 @@ impl LightWallet {
     }
 
     pub fn get_all_zaddresses(&self) -> Vec<String> {
-        self.zkeys.read().unwrap().iter().map( |zk| {
+        let mut zaddrs: Vec<String> = self.zkeys.read().unwrap().iter().map( |zk| {
             encode_payment_address(self.config.hrp_sapling_address(), &zk.zaddress)
-        }).collect()
+        }).collect();
+
+        let dzaddrs = self.zaddresses.read().unwrap();
+        for z in dzaddrs.iter() {
+            let mut found = false;
+            for ud in zaddrs.iter() {
+                if ud == &z.zaddress.clone() {
+                    found = true;
+                }
+            }
+            if !found {
+                zaddrs.push(z.zaddress.clone());
+            }
+        }
+        zaddrs
     }
 
     pub fn address_from_prefix_sk(prefix: &[u8; 2], sk: &secp256k1::SecretKey) -> String {
@@ -869,7 +886,7 @@ impl LightWallet {
         let bip39_seed = bip39::Seed::new(&Mnemonic::from_entropy(&seed, Language::English).unwrap(), "");
 
         // Transparent keys
-        let mut tkeys = vec![];
+        let tkeys = vec![];
         // for pos in 0..self.taddresses.read().unwrap().len() {
         //     let sk = LightWallet::get_taddr_from_bip39seed(&self.config, &bip39_seed.as_bytes(), pos as u32);
         //     let address = self.address_from_sk(&sk);
@@ -1965,7 +1982,21 @@ impl LightWallet {
                 match LightWallet::note_address(self.config.hrp_sapling_address(), &new_note) {
                     Some(a) => {
                         info!("Received sapling output to {}", a);
-                        self.ensure_hd_zaddresses(&a);
+                        // self.ensure_hd_zaddresses(&a);
+
+                        //Add diversified addresses to address list
+                        let mut zaddrs = self.zaddresses.write().unwrap();
+                        let mut found = false;
+                        for z in zaddrs.iter() {
+                            if z.zaddress == a {
+                                found = true;
+                            }
+                        }
+
+                        if !found {
+                            zaddrs.push(WalletDiversifiers{extfvk: new_note.extfvk.clone(), diversifier: new_note.diversifier.clone(), zaddress: a});
+                        }
+
                     },
                     None => {}
                 }
