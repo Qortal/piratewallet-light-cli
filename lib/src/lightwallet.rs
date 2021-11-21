@@ -498,7 +498,8 @@ impl LightWallet {
 
     // Get all z-address private keys. Returns a Vector of (address, privatekey, viewkey)
     pub fn get_z_private_keys(&self) -> Vec<(String, String, String)> {
-        let keys = self.zkeys.read().unwrap().iter().map(|k| {
+        //Collect Default Addresses
+        let mut keys = self.zkeys.read().unwrap().iter().map(|k| {
             let pkey = match k.extsk.clone().map(|extsk| encode_extended_spending_key(self.config.hrp_sapling_private_key(), &extsk)) {
                 Some(pk) => pk,
                 None => "".to_string()
@@ -508,6 +509,32 @@ impl LightWallet {
 
             (encode_payment_address(self.config.hrp_sapling_address(),&k.zaddress), pkey, vkey)
         }).collect::<Vec<(String, String, String)>>();
+
+        //Collect Diversified Addresses
+        let dkeys = self.zaddresses.read().unwrap().iter().map(|k| {
+
+            let vkey = encode_extended_full_viewing_key(self.config.hrp_sapling_viewing_key(), &k.extfvk);
+
+            let pkey = match keys.iter().find(|&pk| pk.2 == vkey.clone()) {
+                Some(pk) => pk.1.clone(),
+                None => "". to_string()
+            };
+
+            (k.zaddress.clone(), pkey, vkey)
+        }).collect::<Vec<(String, String, String)>>();
+
+        //Add Diversified addresses into Default collection
+        for d in dkeys {
+
+            let found = match keys.iter().find(|&k| k.0 == d.0) {
+                Some(_) => true,
+                None => false
+            };
+
+            if !found {
+                keys.push(d);
+            }
+        }
 
         keys
     }
