@@ -536,7 +536,7 @@ impl LightClient {
         info!("Created LightClient to {}", &config.server);
 
         // Save
-        l.do_save().map_err(|s| io::Error::new(ErrorKind::PermissionDenied, s))?;
+        //l.do_save().map_err(|s| io::Error::new(ErrorKind::PermissionDenied, s))?;
 
         Ok(l)
     }
@@ -569,7 +569,7 @@ impl LightClient {
         info!("Created LightClient to {}", &config.server);
 
         // Save
-        l.do_save().map_err(|s| io::Error::new(ErrorKind::PermissionDenied, s))?;
+        //l.do_save().map_err(|s| io::Error::new(ErrorKind::PermissionDenied, s))?;
 
         Ok(l)
     }
