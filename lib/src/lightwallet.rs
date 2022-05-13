@@ -2653,7 +2653,7 @@ impl LightWallet {
                 }
             };
 
-            println!("{}: Adding outputs", now() - start_time);
+            println!("{}: Adding P2SH output", now() - start_time);
 
             if let Err(e) = match to {
                 address::RecipientAddress::Shielded(to) => {
@@ -2669,6 +2669,8 @@ impl LightWallet {
                 return Err(e);
             }
 
+            println!("{}: Adding redeem script output: {}", now() - start_time, redeem_script_pubkey.to_base58());
+            
             // Add redeem script output
             if let Err(e) = builder.add_transparent_output_with_script_pubkey(
                 &TransparentAddress::PublicKey([0; 20]),
