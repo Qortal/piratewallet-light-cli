@@ -2420,6 +2420,358 @@ impl LightWallet {
         Ok((txid, raw_tx))
     }
 
+    pub fn send_to_p2sh_with_redeem_script<F> (
+        &self,
+        consensus_branch_id: u32,
+        spend_params: &[u8],
+        output_params: &[u8],
+        from: &str,
+        tos: Vec<(&str, u64, Option<String>)>,
+        redeem_script_pubkey: &[u8],
+        fee: &u64,
+        broadcast_fn: F
+    ) -> Result<(String, Vec<u8>), String>
+        where F: Fn(Box<[u8]>) -> Result<String, String>
+    {
+        if !self.unlocked {
+            return Err("Cannot spend while wallet is locked".to_string());
+        }
+
+        let start_time = now();
+        if tos.len() == 0 {
+            return Err("Need at least one destination address".to_string());
+        }
+
+        let total_value = tos.iter().map(|to| to.1).sum::<u64>();
+        println!(
+            "0: Creating transaction sending {} zatoshis to {} addresses",
+            total_value, tos.len()
+        );
+
+        // Convert address (str) to RecepientAddress and value to Amount
+        let recepients = tos.iter().map(|to| {
+            let ra = match address::RecipientAddress::from_str(to.0,
+                            self.config.hrp_sapling_address(),
+                            self.config.base58_pubkey_address(),
+                            self.config.base58_script_address()) {
+                Some(to) => to,
+                None => {
+                    let e = format!("Invalid recipient address: '{}'", to.0);
+                    error!("{}", e);
+                    return Err(e);
+                }
+            };
+
+            let value = Amount::from_u64(to.1).unwrap();
+
+            Ok((ra, value, to.2.clone()))
+        }).collect::<Result<Vec<(address::RecipientAddress, Amount, Option<String>)>, String>>()?;
+
+        // Target the next block, assuming we are up-to-date.
+        let (height, anchor_offset) = match self.get_target_height_and_anchor_offset() {
+            Some(res) => res,
+            None => {
+                let e = format!("Cannot send funds before scanning any blocks");
+                error!("{}", e);
+                return Err(e);
+            }
+        };
+
+        // Select notes to cover the target value
+        println!("{}: Selecting notes", now() - start_time);
+        let target_value = Amount::from_u64(total_value).unwrap() + Amount::from_u64(*fee).unwrap();
+
+        // Select the candidate notes that are eligible to be spent
+        let mut candidate_notes: Vec<_> = self.txs.read().unwrap().iter()
+            .map(|(txid, tx)| tx.notes.iter().map(move |note| (*txid, note)))
+            .flatten()
+            .filter_map(|(txid, note)| {
+                // Filter out notes that are already spent
+                if note.spent.is_some() || note.unconfirmed_spent.is_some() {
+                    None
+                } else {
+                    // Get the spending key for the selected fvk, if we have it
+                    let extsk = self.zkeys.read().unwrap().iter()
+                        .find(|zk| zk.extfvk == note.extfvk)
+                        .and_then(|zk| zk.extsk.clone());
+                        //filter only on Notes with a matching from address
+                    if from == LightWallet::note_address(self.config.hrp_sapling_address(), note).unwrap() {
+                        SpendableNote::from(txid, note, anchor_offset, &extsk)
+                    }   else {
+                        None
+                    }
+                }
+            }).collect();
+
+        // Sort by highest value-notes first.
+        candidate_notes.sort_by(|a, b| b.note.value.cmp(&a.note.value));
+
+        // Select the minimum number of notes required to satisfy the target value
+        let notes: Vec<_> = candidate_notes.iter()
+            .scan(0, |running_total, spendable| {
+                let value = spendable.note.value;
+                let ret = if *running_total < u64::from(target_value) {
+                    Some(spendable)
+                } else {
+                    None
+                };
+                *running_total = *running_total + value;
+                ret
+            })
+            .collect();
+
+        let mut builder = Builder::new(height);
+
+        //set fre
+        builder.set_fee(Amount::from_u64(*fee).unwrap());
+
+        // A note on t addresses
+        // Funds received by t-addresses can't be explicitly spent in ZecWallet.
+        // ZecWallet will lazily consolidate all t address funds into your shielded addresses.
+        // Specifically, if you send an outgoing transaction that is sent to a shielded address,
+        // ZecWallet will add all your t-address funds into that transaction, and send them to your shielded
+        // address as change.
+        let tinputs: Vec<_> = self.get_utxos().iter()
+                                .filter(|utxo| utxo.address == from)
+                                .filter(|utxo| utxo.unconfirmed_spent.is_none()) // Remove any unconfirmed spends
+                                .map(|utxo| utxo.clone())
+                                .collect();
+
+        // Create a map from address -> sk for all taddrs, so we can spend from the
+        // right address
+        let address_to_sk = self.tkeys.read().unwrap().iter()
+                                .map(|sk| (self.address_from_sk(&sk), sk.clone()))
+                                .collect::<HashMap<_,_>>();
+
+        // Add all tinputs
+        tinputs.iter()
+            .map(|utxo| {
+                let outpoint: OutPoint = utxo.to_outpoint();
+
+                let coin = TxOut {
+                    value: Amount::from_u64(utxo.value).unwrap(),
+                    script_pubkey: Script { 0: utxo.script.clone() },
+                };
+
+                match address_to_sk.get(&utxo.address) {
+                    Some(sk) => builder.add_transparent_input(*sk, outpoint.clone(), coin.clone()),
+                    None     => {
+                        // Something is very wrong
+                        let e = format!("Couldn't find the secreykey for taddr {}", utxo.address);
+                        error!("{}", e);
+
+                        Err(zcash_primitives::transaction::builder::Error::InvalidAddress)
+                    }
+                }
+
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("{:?}", e))?;
+
+
+        // Confirm we were able to select sufficient value
+        let selected_value = notes.iter().map(|selected| selected.note.value).sum::<u64>()
+                             + tinputs.iter().map::<u64, _>(|utxo| utxo.value.into()).sum::<u64>();
+
+        if selected_value < u64::from(target_value) {
+            let e = format!(
+                "Insufficient verified funds (have {}, need {:?}). NOTE: funds need {} confirmations before they can be spent.",
+                selected_value, target_value, self.config.anchor_offset + 1
+            );
+            error!("{}", e);
+            return Err(e);
+        }
+
+        // Create the transaction
+        println!("{}: Adding {} notes and {} utxos", now() - start_time, notes.len(), tinputs.len());
+
+        for selected in notes.iter() {
+            if let Err(e) = builder.add_sapling_spend(
+                selected.extsk.clone(),
+                selected.diversifier,
+                selected.note.clone(),
+                selected.witness.path().unwrap(),
+            ) {
+                let e = format!("Error adding note: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
+        }
+
+
+        // Use the ovk belonging to the address being sent from, if not using any notes
+        // use the first address in the wallet for the ovk.
+        let ovk = if notes.len() == 0 {
+            self.zkeys.read().unwrap()[0].extfvk.fvk.ovk
+        } else {
+            ExtendedFullViewingKey::from(&notes[0].extsk).fvk.ovk
+        };
+
+        // If no Sapling notes were added, add the change address manually. That is,
+        // send the change back to the transparent address being used,
+        // the builder will automatically send change back to the sapling address if notes are used.
+        if notes.len() == 0 && selected_value - u64::from(target_value) > 0 {
+
+            println!("{}: Adding change output", now() - start_time);
+
+            let from_addr = address::RecipientAddress::from_str(from,
+                            self.config.hrp_sapling_address(),
+                            self.config.base58_pubkey_address(),
+                            self.config.base58_script_address()).unwrap();
+
+            if let Err(e) =  match from_addr {
+                address::RecipientAddress::Shielded(from_addr) => {
+                    builder.add_sapling_output(ovk, from_addr.clone(), Amount::from_u64(selected_value - u64::from(target_value)).unwrap(), None)
+                }
+                address::RecipientAddress::Transparent(from_addr) => {
+                    builder.add_transparent_output(&from_addr, Amount::from_u64(selected_value - u64::from(target_value)).unwrap())
+                }
+            } {
+                let e = format!("Error adding transparent change output: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
+        }
+
+
+        //let to_address;
+
+        for (to, value, memo) in recepients {
+            // Compute memo if it exists
+            let encoded_memo = match memo {
+                None => None,
+                Some(s) => {
+                    // If the string starts with an "0x", and contains only hex chars ([a-f0-9]+) then
+                    // interpret it as a hex
+                    match utils::interpret_memo_string(&s) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            error!("{}", e);
+                            return Err(e);
+                        }
+                    }
+                }
+            };
+
+            println!("{}: Adding outputs", now() - start_time);
+
+            if let Err(e) = match to {
+                address::RecipientAddress::Shielded(to) => {
+                    builder.add_sapling_output(ovk, to.clone(), value, encoded_memo)
+                }
+                // Add P2SH output
+                address::RecipientAddress::Transparent(to) => {
+                    builder.add_transparent_output(&to, value)
+                }
+            } {
+                let e = format!("Error adding output: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
+
+            // Add redeem script output
+            if let Err(e) = builder.add_transparent_output_with_script_pubkey(
+                &TransparentAddress::PublicKey([0; 20]),
+                Amount::from_u64(0).unwrap(),
+                Script { 0: redeem_script_pubkey.to_vec() }
+            ) {
+                let e = format!("Error adding redeem script output: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
+        }
+
+
+        println!("{}: Building transaction", now() - start_time);
+        let (tx, _) = match builder.build(
+            consensus_branch_id,
+            &prover::InMemTxProver::new(spend_params, output_params),
+        ) {
+            Ok(res) => res,
+            Err(e) => {
+                let e = format!("Error creating transaction: {:?}", e);
+                error!("{}", e);
+                return Err(e);
+            }
+        };
+        println!("{}: Transaction created", now() - start_time);
+        println!("Transaction ID: {}", tx.txid());
+
+        // Create the TX bytes
+        let mut raw_tx = vec![];
+        tx.write(&mut raw_tx).unwrap();
+
+        let txid = broadcast_fn(raw_tx.clone().into_boxed_slice())?;
+
+        // Mark notes as spent.
+        {
+            // Mark sapling notes as unconfirmed spent
+            let mut txs = self.txs.write().unwrap();
+            for selected in notes {
+                let mut spent_note = txs.get_mut(&selected.txid).unwrap()
+                                        .notes.iter_mut()
+                                        .find(|nd| &nd.nullifier[..] == &selected.nullifier[..])
+                                        .unwrap();
+                spent_note.unconfirmed_spent = Some(tx.txid());
+            }
+
+            // Mark this utxo as unconfirmed spent
+            for utxo in tinputs {
+                let mut spent_utxo = txs.get_mut(&utxo.txid).unwrap().utxos.iter_mut()
+                                        .find(|u| utxo.txid == u.txid && utxo.output_index == u.output_index)
+                                        .unwrap();
+                spent_utxo.unconfirmed_spent = Some(tx.txid());
+            }
+        }
+
+        // Add this Tx to the mempool structure
+        {
+            let mut mempool_txs = self.mempool_txs.write().unwrap();
+
+            match mempool_txs.get_mut(&tx.txid()) {
+                None => {
+                    // Collect the outgoing metadata
+                    let outgoing_metadata = tos.iter().map(|(addr, amt, maybe_memo)| {
+                        OutgoingTxMetadata {
+                            address: addr.to_string(),
+                            value: *amt,
+                            memo: match maybe_memo {
+                                None    => Memo::default(),
+                                Some(s) => {
+                                    // If the address is not a z-address, then drop the memo
+                                    if !LightWallet::is_shielded_address(&addr.to_string(), &self.config) {
+                                        Memo::default()
+                                    } else {
+                                        match utils::interpret_memo_string(s) {
+                                            Ok(m) => m,
+                                            Err(e) => {
+                                                error!("{}", e);
+                                                Memo::default()
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        }
+                    }).collect::<Vec<_>>();
+
+                    // Create a new WalletTx
+                    let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
+                    wtx.outgoing_metadata = outgoing_metadata;
+                    wtx.total_shielded_value_spent = total_value + fee;
+
+                    // Add it into the mempool
+                    mempool_txs.insert(tx.txid(), wtx);
+                },
+                Some(_) => {
+                    warn!("A newly created Tx was already in the mempool! How's that possible? Txid: {}", tx.txid());
+                }
+            }
+        }
+
+        Ok((txid, raw_tx))
+    }
+
     // After some blocks have been mined, we need to remove the Txns from the mempool_tx structure
     // if they :
     // 1. Have expired
