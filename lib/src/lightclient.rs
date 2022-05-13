@@ -1722,6 +1722,30 @@ impl LightClient {
 
         result.map(|(txid, _)| txid)
     }
+
+    pub fn do_send_p2sh(&self, from: &str, addrs: Vec<(&str, u64, Option<String>)>, fee: &u64, script: &[u8]) -> Result<String, String> {
+        if !self.wallet.read().unwrap().is_unlocked_for_spending() {
+            error!("Wallet is locked");
+            return Err("Wallet is locked".to_string());
+        }
+
+        info!("Creating P2SH transaction");
+
+        let result = {
+            let _lock = self.sync_lock.lock().unwrap();
+
+            self.wallet.write().unwrap().send_to_p2sh_with_redeem_script(
+                u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
+                &self.sapling_spend, &self.sapling_output,
+                from, addrs, script, fee,
+                |txbytes| broadcast_raw_tx(&self.get_server_uri(), txbytes)
+            )
+        };
+
+        info!("Transaction Complete");
+
+        result.map(|(txid, _)| txid)
+    }
 }
 
 #[cfg(test)]
