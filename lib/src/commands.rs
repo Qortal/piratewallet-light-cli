@@ -668,6 +668,163 @@ impl Command for SendP2shCommand {
     }
 }
 
+struct RedeemP2shCommand {}
+impl Command for RedeemP2shCommand {
+    fn help(&self) -> String {
+        let mut h = vec![];
+        h.push("Redeem ARRR from an HTLC");
+        h.push("Usage:");
+        h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>, 'script': <redeem script>, 'txid': <funding txid>, 'secret': <secret>, 'privkey': <private key>}, ...]}");
+        h.push("");
+        h.push("NOTE: The fee required to send this transaction (currently ZEC 0.0001) is additionally detected from your balance.");
+        h.push("Example:");
+        h.push("send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\", \"script\": \"acbdef\", \"secret\": \"acbdef\", \"privkey\": \"acbdef\"}]}'");
+        h.push("");
+        h.join("\n")
+    }
+
+    fn short_help(&self) -> String {
+        "Redeem ARRR from a P2SH address, using redeem script, secret, and private key".to_string()
+    }
+
+    fn exec(&self, args: &[&str], lightclient: &LightClient) -> String {
+        // Parse the args.
+        // A single argument in the form of a JSON string that is "{input: address, output: [{address: address, value: value, memo: memo},...], fee: fee}"
+
+        // 1 - Destination address. T or Z address
+        if args.len() != 1 {
+            return self.help();
+        }
+
+        use std::convert::TryInto;
+        use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
+
+        // Check for a single argument that can be parsed as JSON
+        let arg_list = args[0];
+
+        let json_args = match json::parse(&arg_list) {
+            Ok(j)  => j,
+            Err(e) => {
+                let es = format!("Couldn't understand JSON: {}", e);
+                return format!("{}\n{}", es, self.help());
+            }
+        };
+
+        //Check for a fee key and convert to u64
+        let fee: u64 = if json_args.has_key("fee") {
+            match json_args["fee"].as_u64() {
+                Some(f) => f.clone(),
+                None => DEFAULT_FEE.try_into().unwrap()
+            }
+        } else {
+            DEFAULT_FEE.try_into().unwrap()
+        };
+
+        //Check for a input key and convert to str
+        let from = if json_args.has_key("input") {
+            json_args["input"].as_str().unwrap().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need input address", self.help());
+        };
+
+        //Check for output key
+        let json_tos = if json_args.has_key("output") {
+            &json_args["output"]
+        } else {
+            return format!("Error: {}\n{}", "Need output address", self.help());
+        };
+
+        //Check output is in the form of an array
+        if !json_tos.is_array() {
+            return format!("Couldn't parse argument as array\n{}", self.help());
+        }
+
+
+        //Check for output script and convert to a string
+        let script58 = if json_args.has_key("script") {
+            json_args["script"].as_str().unwrap().to_string().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need script", self.help());
+        };
+
+        // Decode base58 encoded string
+        let script_vec = script58.from_base58().unwrap();
+        let script_bytes = &script_vec[..];
+
+
+        //Check for funding txid and convert to a string
+        let txid58 = if json_args.has_key("txid") {
+            json_args["txid"].as_str().unwrap().to_string().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need funding txid", self.help());
+        };
+
+        // Decode base58 encoded string
+        let txid_vec = txid58.from_base58().unwrap();
+        let txid_bytes = &txid_vec[..];
+
+
+        //Check for secret and convert to a string
+        let secret58 = if json_args.has_key("secret") {
+            json_args["secret"].as_str().unwrap().to_string().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need secret", self.help());
+        };
+
+        // Decode base58 encoded string
+        let secret_vec = secret58.from_base58().unwrap();
+        let secret_bytes = &secret_vec[..];
+
+
+        //Check for privkey and convert to a string
+        let privkey58 = if json_args.has_key("privkey") {
+            json_args["privkey"].as_str().unwrap().to_string().clone()
+        } else {
+            return format!("Error: {}\n{}", "Need privkey", self.help());
+        };
+
+        // Decode base58 encoded string
+        let privkey_vec = privkey58.from_base58().unwrap();
+        let privkey_bytes = &privkey_vec[..];
+
+
+        //Check array for manadantory address and amount keys
+        let maybe_send_args = json_tos.members().map( |j| {
+            if !j.has_key("address") || !j.has_key("amount") {
+                Err(format!("Need 'address' and 'amount'\n"))
+            } else {
+                let amount = match j["amount"].as_str() {
+                    Some("entire-verified-zbalance") => lightclient.wallet.read().unwrap().verified_zbalance(None).checked_sub(fee),
+                    _ => Some(j["amount"].as_u64().unwrap())
+                };
+
+                match amount {
+                    Some(amt) => Ok((j["address"].as_str().unwrap().to_string().clone(), amt, j["memo"].as_str().map(|s| s.to_string().clone()))),
+                    None => Err(format!("Not enough in wallet to pay transaction fee"))
+                }
+            }
+        }).collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
+
+        let send_args = match maybe_send_args {
+            Ok(a) =>  a.clone(),
+            Err(s) => { return format!("Error: {}\n{}", s, self.help()); }
+        };
+
+
+        match lightclient.do_sync(true) {
+            Ok(_) => {
+                // Convert to the right format. String -> &str.
+                let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
+                match lightclient.do_redeem_p2sh(from, tos, &fee, script_bytes, txid_bytes, secret_bytes, privkey_bytes) {
+                    Ok(txid) => { object!{ "txid" => txid } },
+                    Err(e)   => { object!{ "error" => e } }
+                }.pretty(2)
+            },
+            Err(e) => e
+        }
+    }
+}
+
 struct SaveCommand {}
 impl Command for SaveCommand {
     fn help(&self) -> String {
@@ -980,6 +1137,7 @@ pub fn get_commands() -> Box<HashMap<String, Box<dyn Command>>> {
     map.insert("info".to_string(),              Box::new(InfoCommand{}));
     map.insert("send".to_string(),              Box::new(SendCommand{}));
     map.insert("sendp2sh".to_string(),          Box::new(SendP2shCommand{}));
+    map.insert("redeemp2sh".to_string(),        Box::new(RedeemP2shCommand{}));
     map.insert("save".to_string(),              Box::new(SaveCommand{}));
     map.insert("quit".to_string(),              Box::new(QuitCommand{}));
     map.insert("list".to_string(),              Box::new(TransactionsCommand{}));
