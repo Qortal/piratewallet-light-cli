@@ -2673,9 +2673,8 @@ impl LightWallet {
             
             // Add redeem script output
             if let Err(e) = builder.add_transparent_output_with_script_pubkey(
-                &TransparentAddress::PublicKey([0; 20]),
-                Amount::from_u64(0).unwrap(),
-                Script { 0: redeem_script_pubkey.to_vec() }
+                Script { 0: redeem_script_pubkey.to_vec() },
+                Amount::from_u64(0).unwrap()
             ) {
                 let e = format!("Error adding redeem script output: {:?}", e);
                 error!("{}", e);
