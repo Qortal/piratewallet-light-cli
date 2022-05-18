@@ -77,7 +77,7 @@ pub fn double_sha256(payload: &[u8]) -> Vec<u8> {
     h2.to_vec()
 }
 
-use base58::{ToBase58};
+use base58::{FromBase58, ToBase58};
 
 /// A trait for converting a [u8] to base58 encoded string.
 pub trait ToBase58Check {
@@ -2887,14 +2887,18 @@ impl LightWallet {
 
         // Add P2SH transaction as transparent input, including secret and redeem script
 
+        let p2sh_addr_vec = from.from_base58().unwrap();
+        let p2sh_addr_arr = <[u8; 20]>::try_from(&p2sh_addr_vec[2..22]).unwrap();
+        let p2sh_script_pubkey = TransparentAddress::PublicKey(p2sh_addr_arr).script();
+
         let outpoint: OutPoint = OutPoint {
             hash: <[u8; 32]>::try_from(outpoint_txid).unwrap(),
             n: 0
         };
 
         let coin = TxOut {
-            value: Amount::from_u64(total_value).unwrap(),
-            script_pubkey: Script { 0: redeem_script_pubkey.to_vec() },
+            value: target_value,
+            script_pubkey: p2sh_script_pubkey,
         };
 
         let sk = SecretKey::from_slice(privkey).unwrap();
