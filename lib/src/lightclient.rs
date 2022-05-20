@@ -1747,7 +1747,7 @@ impl LightClient {
         result.map(|(txid, _)| txid)
     }
  
-    pub fn do_redeem_p2sh(&self, from: &str, addrs: Vec<(&str, u64, Option<String>)>, fee: &u64, script: &[u8], txid: &[u8], secret: &[u8], privkey: &[u8]) -> Result<String, String> {
+    pub fn do_redeem_p2sh(&self, from: &str, addrs: Vec<(&str, u64, Option<String>)>, fee: &u64, script: &[u8], txid: &[u8], lock_time: u32, secret: &[u8], privkey: &[u8]) -> Result<String, String> {
         if !self.wallet.read().unwrap().is_unlocked_for_spending() {
             error!("Wallet is locked");
             return Err("Wallet is locked".to_string());
@@ -1761,7 +1761,7 @@ impl LightClient {
             self.wallet.write().unwrap().redeem_p2sh(
                 u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
                 &self.sapling_spend, &self.sapling_output,
-                from, addrs, script, txid, secret, privkey, fee,
+                from, addrs, script, txid, lock_time, secret, privkey, fee,
                 |txbytes| broadcast_raw_tx(&self.get_server_uri(), txbytes)
             )
         };

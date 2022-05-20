@@ -674,11 +674,11 @@ impl Command for RedeemP2shCommand {
         let mut h = vec![];
         h.push("Redeem ARRR from an HTLC");
         h.push("Usage:");
-        h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>, 'script': <redeem script>, 'txid': <funding txid>, 'secret': <secret>, 'privkey': <private key>}, ...]}");
+        h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>, 'script': <redeem script>, 'txid': <funding txid>, 'locktime': <lock time>, 'secret': <secret>, 'privkey': <private key>}, ...]}");
         h.push("");
         h.push("NOTE: The fee required to send this transaction (currently ZEC 0.0001) is additionally detected from your balance.");
         h.push("Example:");
-        h.push("send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\", \"script\": \"acbdef\", \"secret\": \"acbdef\", \"privkey\": \"acbdef\"}]}'");
+        h.push("send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\", \"script\": \"acbdef\", \"txid\": \"acbdef\", \"locktime\": 1652873471, \"secret\": \"acbdef\", \"privkey\": \"acbdef\"}]}'");
         h.push("");
         h.join("\n")
     }
@@ -764,6 +764,16 @@ impl Command for RedeemP2shCommand {
         let txid_bytes = &txid_vec[..];
 
 
+        //Check for a lock time and convert to u32
+        let lock_time: u32 = if json_args.has_key("locktime") {
+            match json_args["locktime"].as_u32() {
+                Some(f) => f.clone(),
+                None => return format!("Error: {}\n{}", "locktime must be a number", self.help())
+            }
+        } else {
+            return format!("Error: {}\n{}", "Need locktime", self.help());
+        };
+
         //Check for secret and convert to a string
         let secret58 = if json_args.has_key("secret") {
             json_args["secret"].as_str().unwrap().to_string().clone()
@@ -815,7 +825,7 @@ impl Command for RedeemP2shCommand {
             Ok(_) => {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
-                match lightclient.do_redeem_p2sh(from, tos, &fee, script_bytes, txid_bytes, secret_bytes, privkey_bytes) {
+                match lightclient.do_redeem_p2sh(from, tos, &fee, script_bytes, txid_bytes, lock_time, secret_bytes, privkey_bytes) {
                     Ok(txid) => { object!{ "txid" => txid } },
                     Err(e)   => { object!{ "error" => e } }
                 }.pretty(2)

@@ -48,33 +48,33 @@ reqwest = { version = "0.10.8", features = ["blocking", "json"] }
 
 [dependencies.bellman]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 default-features = false
 features = ["groth16", "multicore"]
 
 [dependencies.pairing]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 
 [dependencies.zcash_client_backend]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 default-features = false
 
 [dependencies.zcash_primitives]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 default-features = false
 features = ["transparent-inputs"]
 
 [dependencies.zcash_proofs]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 default-features = false
 
 [dependencies.ff]
 git = "https://github.com/CalDescent1/librustzcash.git"
-rev = "1a8686863b10a608ececdede3deb82d2fb4218fa"
+rev = "9eeaf4f0269bf3936b2d57a67d7c6ba85bb8e6e9"
 features = ["ff_derive"]
 
 [build-dependencies]

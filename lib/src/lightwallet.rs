@@ -2783,6 +2783,7 @@ impl LightWallet {
         tos: Vec<(&str, u64, Option<String>)>,
         redeem_script_pubkey: &[u8],
         outpoint_txid: &[u8],
+        lock_time: u32,
         secret: &[u8],
         privkey: &[u8],
         fee: &u64,
@@ -2903,7 +2904,7 @@ impl LightWallet {
 
         let sk = SecretKey::from_slice(privkey).unwrap();
 
-        if let Err(e) = builder.add_transparent_input_with_secret(sk, outpoint.clone(), coin.clone(), secret.to_vec(), redeem_script_pubkey.to_vec()
+        if let Err(e) = builder.add_transparent_input_with_secret(sk, outpoint.clone(), coin.clone(), secret.to_vec(), redeem_script_pubkey.to_vec(), lock_time
         ) {
             let e = format!("Error adding transparent input: {:?}", e);
             error!("{}", e);
