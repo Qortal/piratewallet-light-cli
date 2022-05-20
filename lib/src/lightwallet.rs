@@ -2890,7 +2890,7 @@ impl LightWallet {
 
         let p2sh_addr_vec = from.from_base58().unwrap();
         let p2sh_addr_arr = <[u8; 20]>::try_from(&p2sh_addr_vec[2..22]).unwrap();
-        let p2sh_script_pubkey = TransparentAddress::PublicKey(p2sh_addr_arr).script();
+        let p2sh_script_pubkey = TransparentAddress::Script(p2sh_addr_arr).script();
 
         let outpoint: OutPoint = OutPoint {
             hash: <[u8; 32]>::try_from(outpoint_txid).unwrap(),
