@@ -798,16 +798,12 @@ impl Command for RedeemP2shCommand {
         let privkey_bytes = &privkey_vec[..];
 
 
-        //Check array for manadantory address and amount keys
+        //Check array for mandantory address and amount keys
         let maybe_send_args = json_tos.members().map( |j| {
             if !j.has_key("address") || !j.has_key("amount") {
                 Err(format!("Need 'address' and 'amount'\n"))
             } else {
-                let amount = match j["amount"].as_str() {
-                    Some("entire-verified-zbalance") => lightclient.wallet.read().unwrap().verified_zbalance(None).checked_sub(fee),
-                    _ => Some(j["amount"].as_u64().unwrap())
-                };
-
+                let amount = j["amount"].as_u64();
                 match amount {
                     Some(amt) => Ok((j["address"].as_str().unwrap().to_string().clone(), amt, j["memo"].as_str().map(|s| s.to_string().clone()))),
                     None => Err(format!("Not enough in wallet to pay transaction fee"))
@@ -821,17 +817,17 @@ impl Command for RedeemP2shCommand {
         };
 
 
-        match lightclient.do_sync(true) {
-            Ok(_) => {
+        // match lightclient.do_sync(true) {
+        //     Ok(_) => {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
                 match lightclient.do_redeem_p2sh(from, tos, &fee, script_bytes, txid_bytes, lock_time, secret_bytes, privkey_bytes) {
                     Ok(txid) => { object!{ "txid" => txid } },
                     Err(e)   => { object!{ "error" => e } }
                 }.pretty(2)
-            },
-            Err(e) => e
-        }
+        //     },
+        //     Err(e) => e
+        // }
     }
 }
 
