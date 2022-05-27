@@ -1748,11 +1748,6 @@ impl LightClient {
     }
  
     pub fn do_redeem_p2sh(&self, from: &str, addrs: Vec<(&str, u64, Option<String>)>, fee: &u64, script: &[u8], txid: &[u8], lock_time: u32, secret: &[u8], privkey: &[u8]) -> Result<String, String> {
-        if !self.wallet.read().unwrap().is_unlocked_for_spending() {
-            error!("Wallet is locked");
-            return Err("Wallet is locked".to_string());
-        }
-
         info!("Creating transaction to redeem funds from P2SH");
 
         let result = {
