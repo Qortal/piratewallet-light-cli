@@ -817,17 +817,17 @@ impl Command for RedeemP2shCommand {
         };
 
 
-        match lightclient.do_sync(true) {
-            Ok(_) => {
+        // match lightclient.do_sync(true) {
+        //     Ok(_) => {
                 // Convert to the right format. String -> &str.
                 let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
                 match lightclient.do_redeem_p2sh(from, tos, &fee, script_bytes, txid_bytes, lock_time, secret_bytes, privkey_bytes) {
                     Ok(txid) => { object!{ "txid" => txid } },
                     Err(e)   => { object!{ "error" => e } }
                 }.pretty(2)
-            },
-            Err(e) => e
-        }
+        //     },
+        //     Err(e) => e
+        // }
     }
 }
 
