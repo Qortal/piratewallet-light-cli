@@ -2787,6 +2787,7 @@ impl LightWallet {
         secret: &[u8],
         privkey: &[u8],
         fee: &u64,
+        chain_height: u32,
         broadcast_fn: F
     ) -> Result<(String, Vec<u8>), String>
         where F: Fn(Box<[u8]>) -> Result<String, String>
@@ -2878,7 +2879,9 @@ impl LightWallet {
             })
             .collect();
 
-        let mut builder = Builder::new(height);
+        // Use passed-in chain_height as the chain's latest height, as we may not have
+        // a full sync locally
+        let mut builder = Builder::new(chain_height);
 
         //set fre
         builder.set_fee(Amount::from_u64(*fee).unwrap());

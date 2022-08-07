@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::collections::{HashMap};
 use std::cmp::{max, min};
+use std::convert::TryFrom;
 use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, Error, ErrorKind};
@@ -1753,10 +1754,14 @@ impl LightClient {
         let result = {
             let _lock = self.sync_lock.lock().unwrap();
 
+            // This will hold the latest block fetched from the RPC
+            let latest_block_height = fetch_latest_block(&self.get_server_uri())?.height;
+            let latest_block_height_u32 = u32::try_from(latest_block_height).unwrap();
+
             self.wallet.write().unwrap().redeem_p2sh(
                 u32::from_str_radix(&self.config.consensus_branch_id, 16).unwrap(),
                 &self.sapling_spend, &self.sapling_output,
-                from, addrs, script, txid, lock_time, secret, privkey, fee,
+                from, addrs, script, txid, lock_time, secret, privkey, fee, latest_block_height_u32,
                 |txbytes| broadcast_raw_tx(&self.get_server_uri(), txbytes)
             )
         };
