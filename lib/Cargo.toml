@@ -47,33 +47,33 @@ serde_derive = "1.0"
 reqwest = { version = "0.10.8", features = ["blocking", "json"] }
 
 [dependencies.bellman]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 default-features = false
 features = ["groth16", "multicore"]
 
 [dependencies.pairing]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 
 [dependencies.zcash_client_backend]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 default-features = false
 
 [dependencies.zcash_primitives]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 default-features = false
 features = ["transparent-inputs"]
 
 [dependencies.zcash_proofs]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 default-features = false
 
 [dependencies.ff]
-git = "https://github.com/CalDescent1/librustzcash.git"
+git = "https://github.com/Qortal/pirate-librustzcash.git"
 rev = "0d04f6f1cef8b47e114d89b60746abfe5f0c4bf1"
 features = ["ff_derive"]
 
