@@ -14,6 +14,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::mpsc::{Sender, UnboundedReceiver};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tokio::time::{timeout, Duration};
 
 use tonic::transport::{ClientTlsConfig, Certificate};
 use tonic::{
@@ -371,9 +372,9 @@ impl GrpcConnector {
             .map_err(|e| format!("Error getting client: {:?}", e))?;
         let request = Request::new(Empty {});
 
-        let response = client
-            .get_current_arrr_price(request)
+        let response = timeout(Duration::from_secs(10), client.get_current_arrr_price(request))
             .await
+            .map_err(|_| "Timeout while fetching current ARRR price".to_string())?
             .map_err(|e| format!("Error with response: {:?}", e))?;
 
         Ok(response.into_inner())

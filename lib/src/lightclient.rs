@@ -1281,6 +1281,20 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         }
     }
 
+    fn spawn_update_current_price(&self) {
+        let wallet = self.wallet.clone();
+        let uri = self.get_server_uri();
+
+        tokio::spawn(async move {
+            match GrpcConnector::get_current_arrr_price(uri).await {
+                Ok(p) => {
+                    wallet.set_latest_arrr_price(p.price).await;
+                }
+                Err(s) => error!("Error fetching latest price: {}", s),
+            }
+        });
+    }
+
     // Update the historical prices in the wallet, if any are present.
     async fn update_historical_prices(&self) {
         let price = self.wallet.price.read().await.clone();
@@ -1695,8 +1709,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             )
             .await;
 
-        // 2. Update the current price
-        self.update_current_price().await;
+        // 2. Update the current price without blocking sync
+        self.spawn_update_current_price();
 
         // Sapling Tree GRPC Fetcher
         let grpc_connector = GrpcConnector::new(uri.clone());
