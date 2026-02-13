@@ -113,7 +113,7 @@ impl WalletStatus {
 
 pub struct LightClient<P> {
     pub(crate) config: LightClientConfig<P>,
-    pub(crate) wallet: LightWallet<P>,
+    pub(crate) wallet: Arc<LightWallet<P>>,
 
     mempool_monitor: std::sync::RwLock<Option<std::thread::JoinHandle<()>>>,
 
@@ -139,7 +139,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         }
 
         let mut l = LightClient {
-            wallet: LightWallet::new(config.clone(), seed_phrase, height, 1)?,
+            wallet: Arc::new(LightWallet::new(config.clone(), seed_phrase, height, 1)?),
             config: config.clone(),
             mempool_monitor: std::sync::RwLock::new(None),
             sapling_output  : vec![],
@@ -309,7 +309,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     fn new_wallet(config: &LightClientConfig<P>, latest_block: u64, num_zaddrs: u32) -> io::Result<Self> {
         Runtime::new().unwrap().block_on(async move {
             let mut l = LightClient {
-                wallet: LightWallet::new(config.clone(), None, latest_block, num_zaddrs)?,
+                wallet: Arc::new(LightWallet::new(config.clone(), None, latest_block, num_zaddrs)?),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
                 sapling_output  : vec![],
@@ -389,7 +389,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         } else {
             Runtime::new().unwrap().block_on(async move {
                 let mut l = LightClient {
-                    wallet: LightWallet::new(config.clone(), Some(seed_phrase), birthday, 1)?,
+                    wallet: Arc::new(LightWallet::new(config.clone(), Some(seed_phrase), birthday, 1)?),
                     config: config.clone(),
                     mempool_monitor: std::sync::RwLock::new(None),
                     sapling_output  : vec![],
@@ -428,7 +428,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             let wallet = LightWallet::read(&mut reader, config).await?;
 
             let mut lc = LightClient {
-                wallet: wallet,
+                wallet: Arc::new(wallet),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
                 sapling_output  : vec![],
@@ -471,7 +471,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             let wallet = LightWallet::read(&mut file_buffer, config).await?;
 
             let mut lc = LightClient {
-                wallet: wallet,
+                wallet: Arc::new(wallet),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
                 sapling_output  : vec![],
