@@ -914,9 +914,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         let vec_txns = &mut wallet_txns //.values().sort().collect::<Vec<&WalletTx>>();
             .iter()
             .flat_map(|(_k, v)| {
-                let mut txns: Vec<&WalletTx> = vec![];
-                txns.push(v.clone());
-                txns
+                vec![v]
             })
             .collect::<Vec<_>>();
         vec_txns.sort();
@@ -930,7 +928,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 //TODO: - Add t-address support for change
                 //Collect the z_addresses spent from this transaction
                 let mut change_addresses: HashSet<String> = HashSet::new();
-                let hrp: &str = self.config.hrp_sapling_address().clone();
+                let hrp: &str = self.config.hrp_sapling_address();
 
                 // Collect addresses of change notes
                 v.notes.iter().filter(|nd| nd.is_change).for_each(|nd| {
@@ -1089,7 +1087,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     "txid"         => format!("{}", v.txid),
                     "amount"       => total_transparent_received as i64
                                       + total_shielded_received as i64
-                                      - total_send as i64,
+                                      - v.total_sapling_value_spent as i64
+                                      - v.total_transparent_value_spent as i64,
                     "fee"          => v.total_sapling_value_spent as i64
                                         + v.total_transparent_value_spent as i64
                                         - total_send as i64,

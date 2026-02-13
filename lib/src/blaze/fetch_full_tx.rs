@@ -272,7 +272,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
 
         //Collect the z_addresses spent from this transaction
         let mut z_addresses: HashSet<String> = HashSet::new();
-        let hrp: &str = config.hrp_sapling_address().clone();
+        let hrp: &str = config.hrp_sapling_address();
         // Collect Sapling notes
         if let Some(s_bundle) = tx.sapling_bundle() {
             for s in s_bundle.shielded_spends.iter() {
@@ -384,15 +384,15 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                                 Ok(memotry) => memotry,
                             };
 
-                            let mut outgoing_meta = vec![];
-
-                            outgoing_meta.push(OutgoingTxMetadata {
+                            let outgoing_meta = vec![
+OutgoingTxMetadata {
                                 address: address.clone(),
                                 value: note.value,
                                 memo,
                                 transparent: false,
                                 index: i as u64,
-                            });
+                            },
+];
 
                             wallet_txns
                                 .write()
@@ -411,15 +411,15 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                 let taddr = keys.read().await.address_from_pubkeyhash(vout.script_pubkey.address());
 
                 if taddr.is_some() {
-                    let mut outgoing_meta = vec![];
-
-                    outgoing_meta.push(OutgoingTxMetadata {
+                    let outgoing_meta = vec![
+OutgoingTxMetadata {
                         address: taddr.unwrap(),
                         value: vout.value.into(),
                         memo: Memo::Empty,
                         transparent: true,
                         index: i as u64,
-                    });
+                    },
+];
 
                     wallet_txns
                         .write()

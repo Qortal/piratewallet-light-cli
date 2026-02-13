@@ -23,11 +23,12 @@ struct SyncCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SyncCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Sync the light client with the server");
-        h.push("Usage:");
-        h.push("sync");
-        h.push("");
+        let h = vec![
+        "Sync the light client with the server",
+        "Usage:",
+        "sync",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -50,11 +51,12 @@ struct StopSyncCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for StopSyncCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Interupt syncing the light client with the server");
-        h.push("Usage:");
-        h.push("stop");
-        h.push("");
+        let h = vec![
+        "Interupt syncing the light client with the server",
+        "Usage:",
+        "stop",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -77,11 +79,12 @@ struct EncryptionStatusCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for EncryptionStatusCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Check if the wallet is encrypted and if it is locked");
-        h.push("Usage:");
-        h.push("encryptionstatus");
-        h.push("");
+        let h = vec![
+        "Check if the wallet is encrypted and if it is locked",
+        "Usage:",
+        "encryptionstatus",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -99,11 +102,12 @@ struct SyncStatusCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SyncStatusCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get the sync status of the wallet");
-        h.push("Usage:");
-        h.push("syncstatus");
-        h.push("");
+        let h = vec![
+        "Get the sync status of the wallet",
+        "Usage:",
+        "syncstatus",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -149,10 +153,11 @@ struct SendProgressCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendProgressCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get the progress of any send transactions that are currently computing");
-        h.push("Usage:");
-        h.push("sendprogress");
+        let h = vec![
+        "Get the progress of any send transactions that are currently computing",
+        "Usage:",
+        "sendprogress",
+    ];
 
         h.join("\n")
     }
@@ -173,13 +178,14 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendProgre
 struct RescanCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for RescanCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Rescan the wallet, rescanning all blocks for new transactions");
-        h.push("Usage:");
-        h.push("rescan");
-        h.push("");
-        h.push("This command will download all blocks since the intial block again from the light client server");
-        h.push("and attempt to scan each block for transactions belonging to the wallet.");
+        let h = vec![
+        "Rescan the wallet, rescanning all blocks for new transactions",
+        "Usage:",
+        "rescan",
+        "",
+        "This command will download all blocks since the intial block again from the light client server",
+        "and attempt to scan each block for transactions belonging to the wallet.",
+    ];
 
         h.join("\n")
     }
@@ -201,12 +207,13 @@ struct ClearCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ClearCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Clear the wallet state, rolling back the wallet to an empty state.");
-        h.push("Usage:");
-        h.push("clear");
-        h.push("");
-        h.push("This command will clear all notes, utxos and transactions from the wallet, setting up the wallet to be synced from scratch.");
+        let h = vec![
+        "Clear the wallet state, rolling back the wallet to an empty state.",
+        "Usage:",
+        "clear",
+        "",
+        "This command will clear all notes, utxos and transactions from the wallet, setting up the wallet to be synced from scratch.",
+    ];
 
         h.join("\n")
     }
@@ -227,15 +234,16 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ClearComma
 struct HelpCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for HelpCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("List all available commands");
-        h.push("Usage:");
-        h.push("help [command_name]");
-        h.push("");
-        h.push("If no \"command_name\" is specified, a list of all available commands is returned");
-        h.push("Example:");
-        h.push("help send");
-        h.push("");
+        let h = vec![
+        "List all available commands",
+        "Usage:",
+        "help [command_name]",
+        "",
+        "If no \"command_name\" is specified, a list of all available commands is returned",
+        "Example:",
+        "help send",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -269,11 +277,12 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for HelpComman
 struct InfoCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for InfoCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get info about the lightwalletd we're connected to");
-        h.push("Usage:");
-        h.push("info");
-        h.push("");
+        let h = vec![
+        "Get info about the lightwalletd we're connected to",
+        "Usage:",
+        "info",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -290,11 +299,12 @@ struct ArrrPriceCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ArrrPriceCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get the latest ARRR price in the wallet's currency (USD)");
-        h.push("Usage:");
-        h.push("arrrprice");
-        h.push("");
+        let h = vec![
+        "Get the latest ARRR price in the wallet's currency (USD)",
+        "Usage:",
+        "arrrprice",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -311,10 +321,11 @@ struct LastTxIdCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for LastTxIdCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Show the latest TxId in the wallet");
-        h.push("Usage:");
-        h.push("lasttxid");
+        let h = vec![
+        "Show the latest TxId in the wallet",
+        "Usage:",
+        "lasttxid",
+    ];
 
         h.join("\n")
     }
@@ -331,12 +342,13 @@ struct BalanceCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for BalanceCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Show the current ARRR balance in the wallet");
-        h.push("Usage:");
-        h.push("balance");
-        h.push("");
-        h.push("Shielded balances, along with the addresses they belong to are displayed");
+        let h = vec![
+        "Show the current ARRR balance in the wallet",
+        "Usage:",
+        "balance",
+        "",
+        "Shielded balances, along with the addresses they belong to are displayed",
+    ];
 
         h.join("\n")
     }
@@ -352,11 +364,12 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for BalanceCom
 struct AddressCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for AddressCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("List current addresses in the wallet");
-        h.push("Usage:");
-        h.push("address");
-        h.push("");
+        let h = vec![
+        "List current addresses in the wallet",
+        "Usage:",
+        "address",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -372,16 +385,17 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for AddressCom
 struct ExportCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ExportCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Export private key for an individual wallet addresses.");
-        h.push("Note: To backup the whole wallet, use the 'seed' command instead");
-        h.push("Usage:");
-        h.push("export [z-address]");
-        h.push("");
-        h.push("If no address is passed, private key for all addresses in the wallet are exported.");
-        h.push("");
-        h.push("Example:");
-        h.push("export zs1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d");
+        let h = vec![
+        "Export private key for an individual wallet addresses.",
+        "Note: To backup the whole wallet, use the 'seed' command instead",
+        "Usage:",
+        "export [z-address]",
+        "",
+        "If no address is passed, private key for all addresses in the wallet are exported.",
+        "",
+        "Example:",
+        "export zs1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d",
+    ];
 
         h.join("\n")
     }
@@ -412,18 +426,19 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ExportComm
 struct EncryptCommand {}
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for EncryptCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Encrypt the wallet with a password");
-        h.push("Note 1: This will encrypt the seed and the private keys.");
-        h.push("        Use 'unlock' to temporarily unlock the wallet for spending or 'decrypt' ");
-        h.push("        to permanatly remove the encryption");
-        h.push("Note 2: If you forget the password, the only way to recover the wallet is to restore");
-        h.push("        from the seed phrase.");
-        h.push("Usage:");
-        h.push("encrypt password");
-        h.push("");
-        h.push("Example:");
-        h.push("encrypt my_strong_password");
+        let h = vec![
+        "Encrypt the wallet with a password",
+        "Note 1: This will encrypt the seed and the private keys.",
+        "        Use 'unlock' to temporarily unlock the wallet for spending or 'decrypt' ",
+        "        to permanatly remove the encryption",
+        "Note 2: If you forget the password, the only way to recover the wallet is to restore",
+        "        from the seed phrase.",
+        "Usage:",
+        "encrypt password",
+        "",
+        "Example:",
+        "encrypt my_strong_password",
+    ];
 
         h.join("\n")
     }
@@ -455,19 +470,18 @@ struct DecryptCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for DecryptCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Completely remove wallet encryption, storing the wallet in plaintext on disk");
-        h.push(
+        let h = vec![
+        "Completely remove wallet encryption, storing the wallet in plaintext on disk",
             "Note 1: This will decrypt the seed and the sapling and transparent private keys and store them on disk.",
-        );
-        h.push("        Use 'unlock' to temporarily unlock the wallet for spending");
-        h.push("Note 2: If you've forgotten the password, the only way to recover the wallet is to restore");
-        h.push("        from the seed phrase.");
-        h.push("Usage:");
-        h.push("decrypt password");
-        h.push("");
-        h.push("Example:");
-        h.push("decrypt my_strong_password");
+        "        Use 'unlock' to temporarily unlock the wallet for spending",
+        "Note 2: If you've forgotten the password, the only way to recover the wallet is to restore",
+        "        from the seed phrase.",
+        "Usage:",
+        "decrypt password",
+        "",
+        "Example:",
+        "decrypt my_strong_password",
+    ];
 
         h.join("\n")
     }
@@ -498,17 +512,18 @@ struct UnlockCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for UnlockCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Unlock the wallet's encryption in memory, allowing spending from this wallet.");
-        h.push("Note 1: This will decrypt spending keys in memory only. The wallet remains encrypted on disk");
-        h.push("        Use 'decrypt' to remove the encryption permanatly.");
-        h.push("Note 2: If you've forgotten the password, the only way to recover the wallet is to restore");
-        h.push("        from the seed phrase.");
-        h.push("Usage:");
-        h.push("unlock password");
-        h.push("");
-        h.push("Example:");
-        h.push("unlock my_strong_password");
+        let h = vec![
+        "Unlock the wallet's encryption in memory, allowing spending from this wallet.",
+        "Note 1: This will decrypt spending keys in memory only. The wallet remains encrypted on disk",
+        "        Use 'decrypt' to remove the encryption permanatly.",
+        "Note 2: If you've forgotten the password, the only way to recover the wallet is to restore",
+        "        from the seed phrase.",
+        "Usage:",
+        "unlock password",
+        "",
+        "Example:",
+        "unlock my_strong_password",
+    ];
 
         h.join("\n")
     }
@@ -539,16 +554,17 @@ struct LockCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for LockCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Lock a wallet that's been temporarily unlocked. You should already have encryption enabled.");
-        h.push("Note 1: This will remove all spending keys from memory. The wallet remains encrypted on disk");
-        h.push("Note 2: If you've forgotten the password, the only way to recover the wallet is to restore");
-        h.push("        from the seed phrase.");
-        h.push("Usage:");
-        h.push("lock");
-        h.push("");
-        h.push("Example:");
-        h.push("lock");
+        let h = vec![
+        "Lock a wallet that's been temporarily unlocked. You should already have encryption enabled.",
+        "Note 1: This will remove all spending keys from memory. The wallet remains encrypted on disk",
+        "Note 2: If you've forgotten the password, the only way to recover the wallet is to restore",
+        "        from the seed phrase.",
+        "Usage:",
+        "lock",
+        "",
+        "Example:",
+        "lock",
+    ];
 
         h.join("\n")
     }
@@ -558,9 +574,10 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for LockComman
     }
     fn exec(&self, args: &[&str], lightclient: &LightClient<P>) -> String {
         if args.len() != 0 {
-            let mut h = vec![];
-            h.push("Extra arguments to lock. Did you mean 'encrypt'?");
-            h.push("");
+            let h = vec![
+            "Extra arguments to lock. Did you mean 'encrypt'?",
+            "",
+        ];
 
             return format!("{}\n{}", h.join("\n"), Command::<P>::help(self));
         }
@@ -623,17 +640,18 @@ struct EncryptMessageCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for EncryptMessageCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Encrypt a memo to be sent to a z-address offline");
-        h.push("Usage:");
-        h.push("encryptmessage <address> \"memo\"");
-        h.push("OR");
-        h.push("encryptmessage \"{'address': <address>, 'memo': <memo>}\" ");
-        h.push("");
-        h.push("NOTE: This command only returns the encrypted payload. It does not broadcast it. You are expected to send the encrypted payload to the recipient offline");
-        h.push("Example:");
-        h.push("encryptmessage ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d \"Hello from the command line\"");
-        h.push("");
+        let h = vec![
+        "Encrypt a memo to be sent to a z-address offline",
+        "Usage:",
+        "encryptmessage <address> \"memo\"",
+        "OR",
+        "encryptmessage \"{'address': <address>, 'memo': <memo>}\" ",
+        "",
+        "NOTE: This command only returns the encrypted payload. It does not broadcast it. You are expected to send the encrypted payload to the recipient offline",
+        "Example:",
+        "encryptmessage ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d \"Hello from the command line\"",
+        "",
+    ];
         h.join("\n")
     }
 
@@ -696,14 +714,15 @@ struct DecryptMessageCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for DecryptMessageCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Attempt to decrypt a message with all the view keys in the wallet.");
-        h.push("Usage:");
-        h.push("decryptmessage \"encrypted_message_base64\"");
-        h.push("");
-        h.push("Example:");
-        h.push("decryptmessage RW5jb2RlIGFyYml0cmFyeSBvY3RldHMgYXMgYmFzZTY0LiBSZXR1cm5zIGEgU3RyaW5nLg==");
-        h.push("");
+        let h = vec![
+        "Attempt to decrypt a message with all the view keys in the wallet.",
+        "Usage:",
+        "decryptmessage \"encrypted_message_base64\"",
+        "",
+        "Example:",
+        "decryptmessage RW5jb2RlIGFyYml0cmFyeSBvY3RldHMgYXMgYmFzZTY0LiBSZXR1cm5zIGEgU3RyaW5nLg==",
+        "",
+    ];
 
         h.join("\n")
     }
@@ -724,15 +743,16 @@ struct SendCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Send ARRR to a given address(es)");
-        h.push("Usage:");
-        h.push("send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...]}");
-        h.push("");
-        h.push("NOTE: The fee required to send this transaction (currently ARRR 0.0001) is additionally deducted from your balance.");
-        h.push("Example:");
-        h.push("send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\"}], \"fee\": 10000}'");
-        h.push("");
+        let h = vec![
+        "Send ARRR to a given address(es)",
+        "Usage:",
+        "send '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...]}",
+        "",
+        "NOTE: The fee required to send this transaction (currently ARRR 0.0001) is additionally deducted from your balance.",
+        "Example:",
+        "send '{\"input\":\"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"output\": [{ \"address\": \"ztestsapling1x65nq4dgp0qfywgxcwk9n0fvm4fysmapgr2q00p85ju252h6l7mmxu2jg9cqqhtvzd69jwhgv8d\", \"amount\": 200000, \"memo\": \"Hello from the command line\"}], \"fee\": 10000}'",
+        "",
+    ];
         h.join("\n")
     }
 
@@ -762,7 +782,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendComman
 
                 //Check for a input key and convert to str
                 let from = if json_args.has_key("input") {
-                    json_args["input"].as_str().unwrap().clone()
+                    json_args["input"].as_str().unwrap()
                 } else {
                     return format!("Error: {}\n{}", "Need input address", Command::<P>::help(self));
                 };
@@ -846,17 +866,18 @@ struct SendP2shCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendP2shCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Send ARRR to a given address(es), including a redeem script output");
-        h.push("Usage:");
-        h.push("sendp2sh '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...], 'script': <base58>, 'fee': <fee>}'");
-        h.push("");
-        h.push("Fields:");
-        h.push("input  : address to spend from");
-        h.push("output : array of outputs");
-        h.push("script : Base58-encoded redeem script output (push-only OP_RETURN script)");
-        h.push("fee    : fee in zatoshis");
-        h.push("");
+        let h = vec![
+        "Send ARRR to a given address(es), including a redeem script output",
+        "Usage:",
+        "sendp2sh '{'input': <address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...], 'script': <base58>, 'fee': <fee>}'",
+        "",
+        "Fields:",
+        "input  : address to spend from",
+        "output : array of outputs",
+        "script : Base58-encoded redeem script output (push-only OP_RETURN script)",
+        "fee    : fee in zatoshis",
+        "",
+    ];
         h.join("\n")
     }
 
@@ -881,7 +902,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendP2shCo
             };
 
             let from = if json_args.has_key("input") {
-                json_args["input"].as_str().unwrap().clone()
+                json_args["input"].as_str().unwrap()
             } else {
                 return format!("Error: {}\n{}", "Need input address", Command::<P>::help(self));
             };
@@ -969,21 +990,22 @@ struct RedeemP2shCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for RedeemP2shCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Redeem/refund a P2SH HTLC output");
-        h.push("Usage:");
-        h.push("redeemp2sh '{'input': <p2sh address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...], 'fee': <fee>, 'script': <base58>, 'txid': <base58>, 'locktime': <locktime>, 'secret': <base58>, 'privkey': <base58>}'");
-        h.push("");
-        h.push("Fields:");
-        h.push("input   : P2SH address (t3)");
-        h.push("output  : array of outputs");
-        h.push("fee     : fee in zatoshis");
-        h.push("script  : Base58-encoded redeem script bytes");
-        h.push("txid    : Base58-encoded funding txid bytes");
-        h.push("locktime: 0 for redeem, >0 for refund");
-        h.push("secret  : Base58-encoded secret (empty for refund)");
-        h.push("privkey : Base58-encoded 32-byte private key");
-        h.push("");
+        let h = vec![
+        "Redeem/refund a P2SH HTLC output",
+        "Usage:",
+        "redeemp2sh '{'input': <p2sh address>, 'output': [{'address': <address>, 'amount': <amount in zatoshis>, 'memo': <optional memo>}, ...], 'fee': <fee>, 'script': <base58>, 'txid': <base58>, 'locktime': <locktime>, 'secret': <base58>, 'privkey': <base58>}'",
+        "",
+        "Fields:",
+        "input   : P2SH address (t3)",
+        "output  : array of outputs",
+        "fee     : fee in zatoshis",
+        "script  : Base58-encoded redeem script bytes",
+        "txid    : Base58-encoded funding txid bytes",
+        "locktime: 0 for redeem, >0 for refund",
+        "secret  : Base58-encoded secret (empty for refund)",
+        "privkey : Base58-encoded 32-byte private key",
+        "",
+    ];
         h.join("\n")
     }
 
@@ -1006,7 +1028,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for RedeemP2sh
             };
 
             let input = if json_args.has_key("input") {
-                json_args["input"].as_str().unwrap().clone()
+                json_args["input"].as_str().unwrap()
             } else {
                 return format!("Error: {}\n{}", "Need input address", Command::<P>::help(self));
             };
@@ -1108,13 +1130,14 @@ struct SaveCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SaveCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Save the wallet to disk");
-        h.push("Usage:");
-        h.push("save");
-        h.push("");
-        h.push("The wallet is saved to disk. The wallet is periodically saved to disk (and also saved upon exit)");
-        h.push("but you can use this command to explicitly save it to disk");
+        let h = vec![
+        "Save the wallet to disk",
+        "Usage:",
+        "save",
+        "",
+        "The wallet is saved to disk. The wallet is periodically saved to disk (and also saved upon exit)",
+        "but you can use this command to explicitly save it to disk",
+    ];
 
         h.join("\n")
     }
@@ -1145,12 +1168,13 @@ struct SeedCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SeedCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Show the wallet's seed phrase");
-        h.push("Usage:");
-        h.push("seed");
-        h.push("");
-        h.push("Your wallet is entirely recoverable from the seed phrase. Please save it carefully and don't share it with anyone");
+        let h = vec![
+        "Show the wallet's seed phrase",
+        "Usage:",
+        "seed",
+        "",
+        "Your wallet is entirely recoverable from the seed phrase. Please save it carefully and don't share it with anyone",
+    ];
 
         h.join("\n")
     }
@@ -1173,12 +1197,13 @@ struct TransactionsCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for TransactionsCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("List all incoming and outgoing transactions from this wallet");
-        h.push("Usage:");
-        h.push("list [allmemos]");
-        h.push("");
-        h.push("If you include the 'allmemos' argument, all memos are returned in their raw hex format");
+        let h = vec![
+        "List all incoming and outgoing transactions from this wallet",
+        "Usage:",
+        "list [allmemos]",
+        "",
+        "If you include the 'allmemos' argument, all memos are returned in their raw hex format",
+    ];
 
         h.join("\n")
     }
@@ -1213,12 +1238,13 @@ struct SetOptionCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SetOptionCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Set a wallet option");
-        h.push("Usage:");
-        h.push("setoption <optionname>=<optionvalue>");
-        h.push("List of available options:");
-        h.push("download_memos : none | wallet | all");
+        let h = vec![
+        "Set a wallet option",
+        "Usage:",
+        "setoption <optionname>=<optionvalue>",
+        "List of available options:",
+        "download_memos : none | wallet | all",
+    ];
 
         h.join("\n")
     }
@@ -1270,10 +1296,11 @@ struct GetOptionCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for GetOptionCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get a wallet option");
-        h.push("Usage:");
-        h.push("getoption <optionname>");
+        let h = vec![
+        "Get a wallet option",
+        "Usage:",
+        "getoption <optionname>",
+    ];
 
         h.join("\n")
     }
@@ -1311,15 +1338,16 @@ struct ImportCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for ImportCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Import an external spending or viewing key into the wallet");
-        h.push("Usage:");
-        h.push("import <spending_key | viewing_key> <birthday> [norescan]");
-        h.push("OR");
-        h.push("import '{'key': <spending_key or viewing_key>, 'birthday': <birthday>, 'norescan': <true>}'");
-        h.push("");
-        h.push("Birthday is the earliest block number that has transactions belonging to the imported key. Rescanning will start from this block. If not sure, you can specify '0', which will start rescanning from the first sapling block.");
-        h.push("Note that you can import only the full spending (private) key or the full viewing key.");
+        let h = vec![
+        "Import an external spending or viewing key into the wallet",
+        "Usage:",
+        "import <spending_key | viewing_key> <birthday> [norescan]",
+        "OR",
+        "import '{'key': <spending_key or viewing_key>, 'birthday': <birthday>, 'norescan': <true>}'",
+        "",
+        "Birthday is the earliest block number that has transactions belonging to the imported key. Rescanning will start from this block. If not sure, you can specify '0', which will start rescanning from the first sapling block.",
+        "Note that you can import only the full spending (private) key or the full viewing key.",
+    ];
 
         h.join("\n")
     }
@@ -1412,12 +1440,13 @@ struct HeightCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for HeightCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Get the latest block height that the wallet is at.");
-        h.push("Usage:");
-        h.push("height");
-        h.push("");
-        h.push("Pass 'true' (default) to sync to the server to get the latest block height. Pass 'false' to get the latest height in the wallet without checking with the server.");
+        let h = vec![
+        "Get the latest block height that the wallet is at.",
+        "Usage:",
+        "height",
+        "",
+        "Pass 'true' (default) to sync to the server to get the latest block height. Pass 'false' to get the latest height in the wallet without checking with the server.",
+    ];
 
         h.join("\n")
     }
@@ -1439,13 +1468,14 @@ struct DefaultFeeCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for DefaultFeeCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Returns the default fee in zats for outgoing transactions");
-        h.push("Usage:");
-        h.push("defaultfee <optional_block_height>");
-        h.push("");
-        h.push("Example:");
-        h.push("defaultfee");
+        let h = vec![
+        "Returns the default fee in zats for outgoing transactions",
+        "Usage:",
+        "defaultfee <optional_block_height>",
+        "",
+        "Example:",
+        "defaultfee",
+    ];
         h.join("\n")
     }
 
@@ -1468,14 +1498,15 @@ struct NewAddressCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for NewAddressCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Create a new address in this wallet");
-        h.push("Usage:");
-        h.push("new [z | t]");
-        h.push("");
-        h.push("Example:");
-        h.push("To create a new z address:");
-        h.push("new z");
+        let h = vec![
+        "Create a new address in this wallet",
+        "Usage:",
+        "new [z | t]",
+        "",
+        "Example:",
+        "To create a new z address:",
+        "new z",
+    ];
         h.join("\n")
     }
 
@@ -1501,14 +1532,13 @@ struct NotesCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for NotesCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Show all sapling notes and utxos in this wallet");
-        h.push("Usage:");
-        h.push("notes [all]");
-        h.push("");
-        h.push(
+        let h = vec![
+        "Show all sapling notes and utxos in this wallet",
+        "Usage:",
+        "notes [all]",
+        "",
             "If you supply the \"all\" parameter, all previously spent sapling notes and spent utxos are also included",
-        );
+    ];
 
         h.join("\n")
     }
@@ -1540,11 +1570,12 @@ struct QuitCommand {}
 
 impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for QuitCommand {
     fn help(&self) -> String {
-        let mut h = vec![];
-        h.push("Save the wallet to disk and quit");
-        h.push("Usage:");
-        h.push("quit");
-        h.push("");
+        let h = vec![
+        "Save the wallet to disk and quit",
+        "Usage:",
+        "quit",
+        "",
+    ];
 
         h.join("\n")
     }

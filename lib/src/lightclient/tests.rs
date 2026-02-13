@@ -68,11 +68,11 @@ fn new_wallet_from_phrase() {
         let addresses = lc.do_address().await;
 
         assert_eq!(
-            "zs1q6xk3q783t5k92kjqt2rkuuww8pdw2euzy5rk6jytw97enx8fhpazdv3th4xe7vsk6e9sfpawfg".to_string(),
+            "zs1uqgg6nq8uct2wv5pszgw65ea4ft9z0kkcememm5qaspw8c2lgpulf78e46y46r23cz9cz48eqwe".to_string(),
             addresses["z_addresses"][0]
         );
         assert_eq!(
-            "t1eQ63fwkQ4n4Eo5uCrPGaAV8FWB2tmx7ui".to_string(),
+            "RUytX9weUJDFqmzZPh7iRm7n99ksh2HmXP".to_string(),
             addresses["t_addresses"][0]
         );
         println!("z {}", lc.do_export(None).await.unwrap().pretty(2));
@@ -268,7 +268,7 @@ async fn z_incoming_z_outgoing() {
 
         assert_eq!(jv["txid"], tx.txid().to_string());
         assert_eq!(jv["amount"].as_u64().unwrap(), value);
-        assert_eq!(jv["address"], lc.wallet.keys().read().await.get_all_zaddresses()[0]);
+        assert_eq!(jv["incoming_metadata"][0]["address"], lc.wallet.keys().read().await.get_all_zaddresses()[0]);
         assert_eq!(jv["block_height"].as_u64().unwrap(), 11);
     } else {
         panic!("Expecting an array");

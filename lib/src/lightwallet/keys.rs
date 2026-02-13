@@ -173,6 +173,9 @@ impl<P: consensus::Parameters> Keys<P> {
             zkeys.push(WalletZKey::new_hdkey(hdkey_num, extsk));
         }
 
+        // Also create a default transparent key from the seed
+        let tkeys = vec![WalletTKey::new_hdkey(&config, 0, bip39_seed.as_bytes())];
+
         Ok(Self {
             config: config.clone(),
             encrypted: false,
@@ -181,7 +184,7 @@ impl<P: consensus::Parameters> Keys<P> {
             nonce: vec![],
             seed: seed_bytes,
             zkeys,
-            tkeys: vec![],
+            tkeys,
             zaddresses: vec![],
         })
     }

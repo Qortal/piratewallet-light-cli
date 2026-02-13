@@ -1829,6 +1829,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightWallet<P> {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
     use zcash_primitives::transaction::components::Amount;
 
     use crate::{
@@ -1864,7 +1865,7 @@ mod test {
         // 3. With one confirmation, we should be able to select the note
         let amt = Amount::from_u64(10_000).unwrap();
         // Reset the anchor offsets
-        lc.wallet.config.anchor_offset = [9, 4, 2, 1, 0];
+        Arc::get_mut(&mut lc.wallet).unwrap().config.anchor_offset = [9, 4, 2, 1, 0];
         let (notes, utxos, selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
@@ -1884,7 +1885,7 @@ mod test {
         );
 
         // With min anchor_offset at 1, we can't select any notes
-        lc.wallet.config.anchor_offset = [9, 4, 2, 1, 1];
+        Arc::get_mut(&mut lc.wallet).unwrap().config.anchor_offset = [9, 4, 2, 1, 1];
         let (notes, utxos, _selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
@@ -1915,7 +1916,7 @@ mod test {
 
         // Mine 15 blocks, then selecting the note should result in witness only 10 blocks deep
         mine_random_blocks(&mut fcbl, &data, &lc, 15).await;
-        lc.wallet.config.anchor_offset = [9, 4, 2, 1, 1];
+        Arc::get_mut(&mut lc.wallet).unwrap().config.anchor_offset = [9, 4, 2, 1, 1];
         let (notes, utxos, selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
@@ -1954,36 +1955,39 @@ mod test {
         let (_ttx, _) = fcbl.add_ftx(ftx);
         mine_pending_blocks(&mut fcbl, &data, &lc).await;
 
-        // Trying to select a large amount will now succeed
-        let amt = Amount::from_u64(value + tvalue - 10_000).unwrap();
+        // select_notes_and_utxos_by_address filters by address, so selecting from
+        // a z-address only returns z-notes, and from a t-address only returns utxos.
+
+        // Selecting from z-address should still return the z-note
+        let amt = Amount::from_u64(value - 10_000).unwrap();
         let (notes, utxos, selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
             .await;
-        assert_eq!(selected, Amount::from_u64(value + tvalue).unwrap());
+        assert_eq!(selected, Amount::from_u64(value).unwrap());
         assert_eq!(notes.len(), 1);
-        assert_eq!(utxos.len(), 1);
+        assert_eq!(utxos.len(), 0);
 
-        // If we set transparent-only = true, only the utxo should be selected
+        // Selecting from t-address should return the utxo
         let amt = Amount::from_u64(tvalue - 10_000).unwrap();
         let (notes, utxos, selected) = lc
             .wallet
-            .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
+            .select_notes_and_utxos_by_address(amt, &taddr)
             .await;
         assert_eq!(selected, Amount::from_u64(tvalue).unwrap());
         assert_eq!(notes.len(), 0);
         assert_eq!(utxos.len(), 1);
 
-        // Set min confs to 5, so the sapling note will not be selected
-        lc.wallet.config.anchor_offset = [9, 4, 4, 4, 4];
-        let amt = Amount::from_u64(tvalue - 10_000).unwrap();
+        // With high anchor_offset, the z-note still has enough confirmations to be selected
+        Arc::get_mut(&mut lc.wallet).unwrap().config.anchor_offset = [9, 4, 4, 4, 4];
+        let amt = Amount::from_u64(value - 10_000).unwrap();
         let (notes, utxos, selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
             .await;
-        assert_eq!(selected, Amount::from_u64(tvalue).unwrap());
-        assert_eq!(notes.len(), 0);
-        assert_eq!(utxos.len(), 1);
+        assert_eq!(selected, Amount::from_u64(value).unwrap());
+        assert_eq!(notes.len(), 1);
+        assert_eq!(utxos.len(), 0);
 
         // Shutdown everything cleanly
         stop_tx.send(true).unwrap();
@@ -2014,7 +2018,7 @@ mod test {
         // 3. With one confirmation, we should be able to select the note
         let amt = Amount::from_u64(10_000).unwrap();
         // Reset the anchor offsets
-        lc.wallet.config.anchor_offset = [9, 4, 2, 1, 0];
+        Arc::get_mut(&mut lc.wallet).unwrap().config.anchor_offset = [9, 4, 2, 1, 0];
         let (notes, utxos, selected) = lc
             .wallet
             .select_notes_and_utxos_by_address(amt, &lc.wallet.keys().read().await.get_all_zaddresses()[0])
