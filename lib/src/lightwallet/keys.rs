@@ -567,7 +567,7 @@ impl<P: consensus::Parameters> Keys<P> {
     pub fn add_diversifier(&mut self, extfvk: &ExtendedFullViewingKey, diversifier: Diversifier, address: String) {
         self.zaddresses.push(WalletDiversifiers {
             extfvk: extfvk.clone(),
-            diversifier: diversifier,
+            diversifier,
             zaddress: address,
         })
     }

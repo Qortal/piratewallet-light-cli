@@ -389,7 +389,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                             outgoing_meta.push(OutgoingTxMetadata {
                                 address: address.clone(),
                                 value: note.value,
-                                memo: memo,
+                                memo,
                                 transparent: false,
                                 index: i as u64,
                             });

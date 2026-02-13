@@ -227,24 +227,20 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         const SAPLING_OUTPUT_HASH: &str = "2f0ebbcbb9bb0bcffe95a397e7eba89c29eb4dde6191c339db88570e3f3fb0e4";
         const SAPLING_SPEND_HASH: &str = "8e48ffd23abb3a5fd9c5589204f32d9c31285a04b78096ba40a79b75677efc13";
 
-        if sapling_output.len() > 0 {
-            if SAPLING_OUTPUT_HASH.to_string() != hex::encode(Sha256::digest(&sapling_output)) {
-                return Err(format!(
-                    "sapling-output hash didn't match. expected {}, found {}",
-                    SAPLING_OUTPUT_HASH,
-                    hex::encode(Sha256::digest(&sapling_output))
-                ));
-            }
+        if sapling_output.len() > 0 && SAPLING_OUTPUT_HASH.to_string() != hex::encode(Sha256::digest(&sapling_output)) {
+            return Err(format!(
+                "sapling-output hash didn't match. expected {}, found {}",
+                SAPLING_OUTPUT_HASH,
+                hex::encode(Sha256::digest(&sapling_output))
+            ));
         }
 
-        if sapling_spend.len() > 0 {
-            if SAPLING_SPEND_HASH.to_string() != hex::encode(Sha256::digest(&sapling_spend)) {
-                return Err(format!(
-                    "sapling-spend hash didn't match. expected {}, found {}",
-                    SAPLING_SPEND_HASH,
-                    hex::encode(Sha256::digest(&sapling_spend))
-                ));
-            }
+        if sapling_spend.len() > 0 && SAPLING_SPEND_HASH.to_string() != hex::encode(Sha256::digest(&sapling_spend)) {
+            return Err(format!(
+                "sapling-spend hash didn't match. expected {}, found {}",
+                SAPLING_SPEND_HASH,
+                hex::encode(Sha256::digest(&sapling_spend))
+            ));
         }
 
         // Will not overwrite previous params
@@ -1597,21 +1593,19 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     return Err(w);
                 }
 
-                if latest_blockid.height == last_scanned_height {
-                    if !latest_blockid.hash.is_empty()
-                        && BlockHash::from_slice(&latest_blockid.hash).to_string()
-                            != self.wallet.last_scanned_hash().await
-                    {
-                        warn!("One block reorg at height {}", last_scanned_height);
-                        // This is a one-block reorg, so pop the last block. Even if there are more blocks to reorg, this is enough
-                        // to trigger a sync, which will then reorg the remaining blocks
-                        BlockAndWitnessData::invalidate_block(
-                            last_scanned_height,
-                            self.wallet.blocks.clone(),
-                            self.wallet.txns.clone(),
-                        )
-                        .await;
-                    }
+                if latest_blockid.height == last_scanned_height
+                    && !latest_blockid.hash.is_empty()
+                    && BlockHash::from_slice(&latest_blockid.hash).to_string() != self.wallet.last_scanned_hash().await
+                {
+                    warn!("One block reorg at height {}", last_scanned_height);
+                    // This is a one-block reorg, so pop the last block. Even if there are more blocks to reorg, this is enough
+                    // to trigger a sync, which will then reorg the remaining blocks
+                    BlockAndWitnessData::invalidate_block(
+                        last_scanned_height,
+                        self.wallet.blocks.clone(),
+                        self.wallet.txns.clone(),
+                    )
+                    .await;
                 }
 
                 // Re-read the last scanned height

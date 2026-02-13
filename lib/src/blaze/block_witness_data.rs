@@ -84,11 +84,12 @@ impl BlockAndWitnessData {
     }
 
     pub async fn setup_sync(&mut self, existing_blocks: Vec<BlockData>, verified_tree: Option<TreeState>) {
-        if !existing_blocks.is_empty() {
-            if existing_blocks.first().unwrap().height < existing_blocks.last().unwrap().height {
-                panic!("Blocks are in wrong order");
-            }
+        if !existing_blocks.is_empty()
+            && existing_blocks.first().unwrap().height < existing_blocks.last().unwrap().height
+        {
+            panic!("Blocks are in wrong order");
         }
+
         self.verification_list.write().await.clear();
         self.verified_tree = verified_tree;
 

@@ -427,10 +427,7 @@ impl GrpcConnector {
     }
 
     pub async fn get_lite_wallet_block_group(uri: http::Uri, height: u64) -> Result<BlockId, String> {
-        let bs = BlockId {
-            height: height,
-            hash: vec![],
-        };
+        let bs = BlockId { height, hash: vec![] };
 
         let client = Arc::new(GrpcConnector::new(uri));
         let mut client = client
