@@ -563,11 +563,7 @@ impl OutgoingTxMetadata {
             )),
         }?;
 
-        let transparent = if version >= 21 {
-            reader.read_u8()? == 1
-        } else {
-            false
-        };
+        let transparent = if version >= 21 { reader.read_u8()? == 1 } else { false };
 
         let index = if version >= 21 {
             reader.read_u64::<LittleEndian>()?
@@ -575,7 +571,13 @@ impl OutgoingTxMetadata {
             0
         };
 
-        Ok(OutgoingTxMetadata { address, value, memo, transparent, index })
+        Ok(OutgoingTxMetadata {
+            address,
+            value,
+            memo,
+            transparent,
+            index,
+        })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
@@ -634,7 +636,7 @@ pub struct WalletTx {
     pub full_tx_scanned: bool,
 
     // Value Balance of this Tx.
-    pub value_balance : u64,
+    pub value_balance: u64,
     // Price of Arrr when this Tx was created
     pub arrr_price: Option<f64>,
 }
@@ -729,7 +731,7 @@ impl WalletTx {
         let total_transparent_value_spent = reader.read_u64::<LittleEndian>()?;
 
         // Outgoing metadata was only added in version 2
-        let outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r,version))?;
+        let outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r, version))?;
 
         // if version < 21 { //Removed in version 21
         //     let _outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r,version))?;

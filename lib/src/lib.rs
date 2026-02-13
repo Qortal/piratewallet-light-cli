@@ -14,9 +14,8 @@ pub mod txauth;
 #[folder = "zcash-params/"]
 pub struct SaplingParams;
 
-
 #[derive(RustEmbed)]
-#[folder = "pubkey/" ]
+#[folder = "pubkey/"]
 pub struct ServerCert;
 
 pub use zcash_primitives::consensus::{MainNetwork, Parameters};

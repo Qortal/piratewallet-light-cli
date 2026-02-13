@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ServerCert;
 use crate::compact_formats::compact_tx_streamer_client::CompactTxStreamerClient;
 use crate::compact_formats::{
     BlockId, BlockRange, ChainSpec, CompactBlock, Empty, LightdInfo, PriceRequest, PriceResponse, RawTransaction,
     TransparentAddressBlockFilter, TreeState, TxFilter,
 };
+use crate::ServerCert;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use log::warn;
@@ -16,14 +16,13 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio::time::{timeout, Duration};
 
-use tonic::transport::{ClientTlsConfig, Certificate};
+use tonic::transport::{Certificate, ClientTlsConfig};
 use tonic::{
     transport::{Channel, Error},
     Request,
 };
 use zcash_primitives::consensus::{self, BlockHeight, BranchId};
 use zcash_primitives::transaction::{Transaction, TxId};
-
 
 #[derive(Clone)]
 pub struct GrpcConnector {
@@ -428,7 +427,6 @@ impl GrpcConnector {
     }
 
     pub async fn get_lite_wallet_block_group(uri: http::Uri, height: u64) -> Result<BlockId, String> {
-
         let bs = BlockId {
             height: height,
             hash: vec![],

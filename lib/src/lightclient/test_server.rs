@@ -224,10 +224,7 @@ impl<P: consensus::Parameters> TestGRPCService<P> {
 
 #[tonic::async_trait]
 impl<P: consensus::Parameters + Send + Sync + 'static> CompactTxStreamer for TestGRPCService<P> {
-    async fn get_lite_wallet_block_group(
-        &self,
-        _request: Request<BlockId>,
-    ) -> Result<Response<BlockId>, Status> {
+    async fn get_lite_wallet_block_group(&self, _request: Request<BlockId>) -> Result<Response<BlockId>, Status> {
         Self::wait_random().await;
 
         match self.data.read().await.blocks.iter().max_by_key(|b| b.height) {

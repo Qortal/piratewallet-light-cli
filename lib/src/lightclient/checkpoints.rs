@@ -45,9 +45,7 @@ fn get_checkpoints(chain_name: &str, coin_type: u32) -> Vec<(u64, String, String
     match cps {
         Some(s) => {
             for coin in 0..s.coin_list.len() {
-                if s.coin_list[coin].coin_type == coin_type
-                    && s.coin_list[coin].chain_name == chain_name
-                {
+                if s.coin_list[coin].coin_type == coin_type && s.coin_list[coin].chain_name == chain_name {
                     for points in 0..s.coin_list[coin].check_points.len() {
                         checkpoints.push((
                             s.coin_list[coin].check_points[points].height,

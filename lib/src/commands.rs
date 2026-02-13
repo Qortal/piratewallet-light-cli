@@ -753,7 +753,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendComman
                 let arg_list = args[0];
 
                 let json_args = match json::parse(&arg_list) {
-                    Ok(j)  => j,
+                    Ok(j) => j,
                     Err(e) => {
                         let es = format!("Couldn't understand JSON: {}", e);
                         return format!("{}\n{}", es, Command::<P>::help(self));
@@ -783,7 +783,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendComman
                 let fee: u64 = if json_args.has_key("fee") {
                     match json_args["fee"].as_u64() {
                         Some(f) => f.clone(),
-                        None => DEFAULT_FEE.try_into().unwrap()
+                        None => DEFAULT_FEE.try_into().unwrap(),
                     }
                 } else {
                     DEFAULT_FEE.try_into().unwrap()
@@ -792,42 +792,52 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendComman
                 let all_zbalance = lightclient.wallet.verified_zbalance(None).await.checked_sub(fee);
 
                 //Check array for manadantory address and amount keys
-                let maybe_send_args = json_tos.members().map( |j| {
-                    if !j.has_key("address") || !j.has_key("amount") {
-                        Err(format!("Need 'address' and 'amount'\n"))
-                    } else {
-                        let amount = match j["amount"].as_str() {
-                            Some("entire-verified-zbalance") => all_zbalance,
-                            _ => Some(j["amount"].as_u64().unwrap())
-                        };
+                let maybe_send_args = json_tos
+                    .members()
+                    .map(|j| {
+                        if !j.has_key("address") || !j.has_key("amount") {
+                            Err(format!("Need 'address' and 'amount'\n"))
+                        } else {
+                            let amount = match j["amount"].as_str() {
+                                Some("entire-verified-zbalance") => all_zbalance,
+                                _ => Some(j["amount"].as_u64().unwrap()),
+                            };
 
-                        match amount {
-                            Some(amt) => Ok((j["address"].as_str().unwrap().to_string().clone(), amt, j["memo"].as_str().map(|s| s.to_string().clone()))),
-                            None => Err(format!("Not enough in wallet to pay transaction fee"))
+                            match amount {
+                                Some(amt) => Ok((
+                                    j["address"].as_str().unwrap().to_string().clone(),
+                                    amt,
+                                    j["memo"].as_str().map(|s| s.to_string().clone()),
+                                )),
+                                None => Err(format!("Not enough in wallet to pay transaction fee")),
+                            }
                         }
-                    }
-                }).collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
+                    })
+                    .collect::<Result<Vec<(String, u64, Option<String>)>, String>>();
 
                 let send_args = match maybe_send_args {
-                    Ok(a) =>  a.clone(),
+                    Ok(a) => a.clone(),
                     Err(s) => {
                         return format!("Error: {}\n{}", s, Command::<P>::help(self));
                     }
                 };
 
-
-                let tos = send_args.iter().map(|(a, v, m)| (a.as_str(), *v, m.clone()) ).collect::<Vec<_>>();
+                let tos = send_args
+                    .iter()
+                    .map(|(a, v, m)| (a.as_str(), *v, m.clone()))
+                    .collect::<Vec<_>>();
                 match lightclient.do_send(from, tos, &fee).await {
-                    Ok(txid) => { object!{ "txid" => txid } },
-                    Err(e)   => { object!{ "error" => e } }
-                }.pretty(2)
-
-
-
+                    Ok(txid) => {
+                        object! { "txid" => txid }
+                    }
+                    Err(e) => {
+                        object! { "error" => e }
+                    }
+                }
+                .pretty(2)
             } else {
                 return Command::<P>::help(self);
             }
-
         })
     }
 }
@@ -899,11 +909,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for SendP2shCo
                 match json_args["script"].as_str() {
                     Some(s) => s.to_string(),
                     None => {
-                        return format!(
-                            "Error: {}\n{}",
-                            "script must be a string",
-                            Command::<P>::help(self)
-                        );
+                        return format!("Error: {}\n{}", "script must be a string", Command::<P>::help(self));
                     }
                 }
             } else {
@@ -1040,11 +1046,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for RedeemP2sh
                 match json_args["locktime"].as_u64() {
                     Some(l) => l,
                     None => {
-                        return format!(
-                            "Error: {}\n{}",
-                            "locktime must be a number",
-                            Command::<P>::help(self)
-                        );
+                        return format!("Error: {}\n{}", "locktime must be a number", Command::<P>::help(self));
                     }
                 }
             } else {
@@ -1091,16 +1093,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> Command<P> for RedeemP2sh
                 .collect::<Vec<_>>();
 
             match lightclient
-                .do_redeem_p2sh(
-                    input,
-                    tos,
-                    &fee,
-                    &script,
-                    &txid,
-                    locktime,
-                    &secret,
-                    &privkey,
-                )
+                .do_redeem_p2sh(input, tos, &fee, &script, &txid, locktime, &secret, &privkey)
                 .await
             {
                 Ok(txid) => object! { "txid" => txid },

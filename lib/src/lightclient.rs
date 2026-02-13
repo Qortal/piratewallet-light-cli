@@ -15,6 +15,7 @@ use base58::FromBase58;
 use futures::{stream::FuturesUnordered, StreamExt};
 use json::{array, object, JsonValue};
 use log::{error, info, warn};
+use sha2::{Digest, Sha256};
 use std::{
     cmp,
     collections::HashSet,
@@ -25,7 +26,6 @@ use std::{
     sync::{atomic::AtomicBool, Arc},
     time::Duration,
 };
-use sha2::{Digest, Sha256};
 use tokio::{
     join,
     runtime::Runtime,
@@ -90,8 +90,7 @@ pub(crate) fn parse_raw_transaction<P: consensus::Parameters>(
     };
 
     let branch_id = BranchId::for_height(&config.get_params(), BlockHeight::from_u32(height));
-    Transaction::read(&raw_tx.data[..], branch_id)
-        .map_err(|e| format!("Error parsing Transaction: {}", e))
+    Transaction::read(&raw_tx.data[..], branch_id).map_err(|e| format!("Error parsing Transaction: {}", e))
 }
 
 #[derive(Clone, Debug)]
@@ -118,8 +117,8 @@ pub struct LightClient<P> {
     mempool_monitor: std::sync::RwLock<Option<std::thread::JoinHandle<()>>>,
 
     // zcash-params
-    pub sapling_output  : Vec<u8>,
-    pub sapling_spend   : Vec<u8>,
+    pub sapling_output: Vec<u8>,
+    pub sapling_spend: Vec<u8>,
 
     sync_lock: Mutex<()>,
     bsync_data: Arc<RwLock<BlazeSyncData>>,
@@ -142,8 +141,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             wallet: Arc::new(LightWallet::new(config.clone(), seed_phrase, height, 1)?),
             config: config.clone(),
             mempool_monitor: std::sync::RwLock::new(None),
-            sapling_output  : vec![],
-            sapling_spend   : vec![],
+            sapling_output: vec![],
+            sapling_spend: vec![],
             bsync_data: Arc::new(RwLock::new(BlazeSyncData::new(&config))),
             sync_lock: Mutex::new(()),
             quiting: AtomicBool::new(false),
@@ -153,10 +152,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
         #[cfg(feature = "embed_params")]
         if !l.load_embedded_params() {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "Loading sapling params failed!",
-            ));
+            return Err(Error::new(ErrorKind::InvalidData, "Loading sapling params failed!"));
         }
 
         info!("Created new wallet!");
@@ -179,7 +175,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     fn load_embedded_params(&mut self) -> bool {
         let (sapling_output, sapling_spend) = match self.read_sapling_params() {
             Ok(s) => s,
-            Err(_) => return false
+            Err(_) => return false,
         };
 
         // Will not overwrite previous params
@@ -261,7 +257,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         }
 
         // Ensure that the sapling params are stored on disk properly as well. Only on desktop
-        if cfg!(all(not(target_os="ios"), not(target_os="android"))) {
+        if cfg!(all(not(target_os = "ios"), not(target_os = "android"))) {
             match self.config.get_zcash_params_path() {
                 Ok(zcash_params_dir) => {
                     // Create the sapling output and spend params files
@@ -312,8 +308,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 wallet: Arc::new(LightWallet::new(config.clone(), None, latest_block, num_zaddrs)?),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
-                sapling_output  : vec![],
-                sapling_spend   : vec![],
+                sapling_output: vec![],
+                sapling_spend: vec![],
                 sync_lock: Mutex::new(()),
                 bsync_data: Arc::new(RwLock::new(BlazeSyncData::new(&config))),
                 quiting: AtomicBool::new(false),
@@ -323,10 +319,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
             #[cfg(feature = "embed_params")]
             if !l.load_embedded_params() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Loading sapling params failed!",
-                ));
+                return Err(Error::new(ErrorKind::InvalidData, "Loading sapling params failed!"));
             }
 
             info!("Created new wallet with a new seed!");
@@ -392,8 +385,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     wallet: Arc::new(LightWallet::new(config.clone(), Some(seed_phrase), birthday, 1)?),
                     config: config.clone(),
                     mempool_monitor: std::sync::RwLock::new(None),
-                    sapling_output  : vec![],
-                    sapling_spend   : vec![],
+                    sapling_output: vec![],
+                    sapling_spend: vec![],
                     sync_lock: Mutex::new(()),
                     bsync_data: Arc::new(RwLock::new(BlazeSyncData::new(&config))),
                     quiting: AtomicBool::new(false),
@@ -406,10 +399,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
                 #[cfg(feature = "embed_params")]
                 if !l.load_embedded_params() {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "Loading sapling params failed!",
-                    ));
+                    return Err(Error::new(ErrorKind::InvalidData, "Loading sapling params failed!"));
                 }
 
                 info!("Created new wallet!");
@@ -431,8 +421,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 wallet: Arc::new(wallet),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
-                sapling_output  : vec![],
-                sapling_spend   : vec![],
+                sapling_output: vec![],
+                sapling_spend: vec![],
                 sync_lock: Mutex::new(()),
                 bsync_data: Arc::new(RwLock::new(BlazeSyncData::new(&config))),
                 quiting: AtomicBool::new(false),
@@ -440,10 +430,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
             #[cfg(feature = "embed_params")]
             if !lc.load_embedded_params() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Loading sapling params failed!",
-                ));
+                return Err(Error::new(ErrorKind::InvalidData, "Loading sapling params failed!"));
             }
 
             info!("Read wallet with birthday {}", lc.wallet.get_birthday().await);
@@ -474,8 +461,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 wallet: Arc::new(wallet),
                 config: config.clone(),
                 mempool_monitor: std::sync::RwLock::new(None),
-                sapling_output  : vec![],
-                sapling_spend   : vec![],
+                sapling_output: vec![],
+                sapling_spend: vec![],
                 sync_lock: Mutex::new(()),
                 bsync_data: Arc::new(RwLock::new(BlazeSyncData::new(&config))),
                 quiting: AtomicBool::new(false),
@@ -483,10 +470,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
             #[cfg(feature = "embed_params")]
             if !lc.load_embedded_params() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Loading sapling params failed!",
-                ));
+                return Err(Error::new(ErrorKind::InvalidData, "Loading sapling params failed!"));
             }
 
             info!("Read wallet with birthday {}", lc.wallet.get_birthday().await);
@@ -929,40 +913,32 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     }
 
     pub async fn do_list_transactions(&self, include_memo_hex: bool) -> JsonValue {
+        let wallet_txns = &self.wallet.txns.read().await.current;
 
-        let wallet_txns = &self
-            .wallet
-            .txns
-            .read()
-            .await
-            .current;
-
-        let vec_txns = &mut wallet_txns  //.values().sort().collect::<Vec<&WalletTx>>();
-                            .iter()
-                            .flat_map(|(_k, v)|  {
-                                let mut txns: Vec<&WalletTx> = vec![];
-                                txns.push(v.clone());
-                                txns
-                            }).collect::<Vec<_>>();
+        let vec_txns = &mut wallet_txns //.values().sort().collect::<Vec<&WalletTx>>();
+            .iter()
+            .flat_map(|(_k, v)| {
+                let mut txns: Vec<&WalletTx> = vec![];
+                txns.push(v.clone());
+                txns
+            })
+            .collect::<Vec<_>>();
         vec_txns.sort();
 
         // Create a list of TransactionItems from wallet txns
         let tx_list = &vec_txns
             .iter()
-            .flat_map(| v | {
+            .flat_map(|v| {
                 let mut txns: Vec<JsonValue> = vec![];
 
                 //TODO: - Add t-address support for change
                 //Collect the z_addresses spent from this transaction
-                let mut change_addresses: HashSet<String>= HashSet::new();
+                let mut change_addresses: HashSet<String> = HashSet::new();
                 let hrp: &str = self.config.hrp_sapling_address().clone();
 
                 // Collect addresses of change notes
-                v.notes
-                    .iter()
-                    .filter(|nd| nd.is_change)
-                    .for_each(|nd| {
-                        change_addresses.insert(LightWallet::<P>::note_address(hrp, nd).unwrap());
+                v.notes.iter().filter(|nd| nd.is_change).for_each(|nd| {
+                    change_addresses.insert(LightWallet::<P>::note_address(hrp, nd).unwrap());
                 });
 
                 //Get totals from incoming and outgoing metadata
@@ -971,9 +947,11 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 let total_transparent_received: u64 = v.utxos.iter().map(|u| u.value).sum::<u64>();
 
                 // Collect incoming metadata
-                let mut incoming_json = v.notes.iter()
+                let mut incoming_json = v
+                    .notes
+                    .iter()
                     .filter(|nd| !nd.is_change)
-                    .map ( |nd| {
+                    .map(|nd| {
                         let mut o = object! {
                             "address"      => LightWallet::<P>::note_address(self.config.hrp_sapling_address(), nd),
                             "value"       => nd.note.value as i64,
@@ -989,25 +967,27 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     })
                     .collect::<Vec<JsonValue>>();
 
-                let incoming_t_json = v.utxos.iter()
+                let incoming_t_json = v
+                    .utxos
+                    .iter()
                     .filter(|u| !change_addresses.contains(&u.address))
-                    .map( |uo| {
-                            let o = if include_memo_hex {
-                                object! {
-                                "address"       => uo.address.clone(),
-                                "value"         => uo.value.clone() as i64,
-                                "memo"          => None::<String>,
-                                "memohex"       => None::<String>
-                                }
-                            } else {
-                                object! {
-                                "address"       => uo.address.clone(),
-                                "value"         => uo.value.clone() as i64,
-                                "memo"          => None::<String>,
-                                }
-                            };
+                    .map(|uo| {
+                        let o = if include_memo_hex {
+                            object! {
+                            "address"       => uo.address.clone(),
+                            "value"         => uo.value.clone() as i64,
+                            "memo"          => None::<String>,
+                            "memohex"       => None::<String>
+                            }
+                        } else {
+                            object! {
+                            "address"       => uo.address.clone(),
+                            "value"         => uo.value.clone() as i64,
+                            "memo"          => None::<String>,
+                            }
+                        };
 
-                            return o;
+                        return o;
                     })
                     .collect::<Vec<JsonValue>>();
 
@@ -1016,9 +996,11 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 }
 
                 // Collect incoming metadata change
-                let mut incoming_change_json = v.notes.iter()
+                let mut incoming_change_json = v
+                    .notes
+                    .iter()
                     .filter(|nd| nd.is_change)
-                    .map ( |nd|{
+                    .map(|nd| {
                         let mut o = object! {
                             "address"      => LightWallet::<P>::note_address(self.config.hrp_sapling_address(), nd),
                             "value"        => nd.note.value as i64,
@@ -1034,9 +1016,11 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     })
                     .collect::<Vec<JsonValue>>();
 
-                let incoming_t_change_json = v.utxos.iter()
+                let incoming_t_change_json = v
+                    .utxos
+                    .iter()
                     .filter(|u| change_addresses.contains(&u.address))
-                    .map( |uo|{
+                    .map(|uo| {
                         let o = if include_memo_hex {
                             object! {
                             "address"       => uo.address.clone(),
@@ -1061,10 +1045,12 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 }
 
                 // Collect outgoing metadata
-                let outgoing_json = v.outgoing_metadata.iter()
+                let outgoing_json = v
+                    .outgoing_metadata
+                    .iter()
                     .filter(|md| !change_addresses.contains(&md.address))
                     .map(|om| {
-                        let mut o = object!{
+                        let mut o = object! {
                             "address" => om.address.clone(),
                             "value"   => om.value,
                             "memo"    => LightWallet::<P>::memo_str(Some(om.memo.clone())),
@@ -1080,10 +1066,12 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     .collect::<Vec<JsonValue>>();
 
                 // Collect outgoing metadata change
-                let outgoing_change_json = v.outgoing_metadata.iter()
+                let outgoing_change_json = v
+                    .outgoing_metadata
+                    .iter()
                     .filter(|md| change_addresses.contains(&md.address))
-                    .map(|om|{
-                        let mut o = object!{
+                    .map(|om| {
+                        let mut o = object! {
                             "address" => om.address.clone(),
                             "value"   => om.value,
                             "memo"    => LightWallet::<P>::memo_str(Some(om.memo.clone())),
@@ -1121,9 +1109,9 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 }
 
                 txns.push(tx_entry);
-            txns
-        })
-        .collect::<Vec<JsonValue>>();
+                txns
+            })
+            .collect::<Vec<JsonValue>>();
 
         JsonValue::Array(tx_list.to_vec())
     }
@@ -1319,32 +1307,43 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
         info!("Fetching historical prices for {} txids", txids_to_fetch.len());
 
-        let retry_count_increase =
-            match GrpcConnector::get_historical_arrr_prices(self.get_server_uri(), txids_to_fetch, price.currency).await
-            {
-                Ok(prices) => {
-                    let mut any_failed = false;
+        let retry_count_increase = match GrpcConnector::get_historical_arrr_prices(
+            self.get_server_uri(),
+            txids_to_fetch,
+            price.currency,
+        )
+        .await
+        {
+            Ok(prices) => {
+                let mut any_failed = false;
 
-                    for (txid, p) in prices {
-                        match p {
-                            None => any_failed = true,
-                            Some(p) => {
-                                // Update the price
-                                // info!("Historical price at txid {} was {}", txid, p);
-                                self.wallet.txns.write().await.current.get_mut(&txid).unwrap().arrr_price = Some(p);
-                            }
+                for (txid, p) in prices {
+                    match p {
+                        None => any_failed = true,
+                        Some(p) => {
+                            // Update the price
+                            // info!("Historical price at txid {} was {}", txid, p);
+                            self.wallet
+                                .txns
+                                .write()
+                                .await
+                                .current
+                                .get_mut(&txid)
+                                .unwrap()
+                                .arrr_price = Some(p);
                         }
                     }
-
-                    // If any of the txids failed, increase the retry_count by 1.
-                    if any_failed {
-                        1
-                    } else {
-                        0
-                    }
                 }
-                Err(_) => 1,
-            };
+
+                // If any of the txids failed, increase the retry_count by 1.
+                if any_failed {
+                    1
+                } else {
+                    0
+                }
+            }
+            Err(_) => 1,
+        };
 
         {
             let mut p = self.wallet.price.write().await;
@@ -1430,11 +1429,10 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     }
 
     pub async fn do_sync(&self, print_updates: bool) -> Result<JsonValue, String> {
-
         let mut blocks = 10_000;
         let mut error_count = 0;
 
-        let mut result = Ok(object!{"result" => "success"});
+        let mut result = Ok(object! {"result" => "success"});
         let mut sync_complete = false;
         while !sync_complete {
             // Remember the previous sync id first
@@ -1447,7 +1445,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             let wallet_height = self.wallet.last_scanned_height().await;
             let sync_to_block = match GrpcConnector::get_lite_wallet_block_group(uri.clone(), wallet_height).await {
                 Ok(sync_to_blockid) => sync_to_blockid.height,
-                Err(_) =>  0,
+                Err(_) => 0,
             };
 
             //Determine size of batch
@@ -1458,7 +1456,6 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             //Get Chain Height
             result = match GrpcConnector::get_latest_block(uri.clone()).await {
                 Ok(latest_blockid) => {
-
                     //Set Chainheight
                     let chain_height = latest_blockid.height.clone();
 
@@ -1472,8 +1469,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                             latest_blockid.height, last_scanned_height
                         );
                         warn!("{}", w);
-                        return Ok(object!{"result" => "failed",
-                                          "reason" => w});
+                        return Ok(object! {"result" => "failed",
+                        "reason" => w});
                     }
 
                     // Start the sync
@@ -1523,15 +1520,14 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                     }
 
                     sync_result
-                },
-                Err(x) =>  Err(x),
+                }
+                Err(x) => Err(x),
             };
-
 
             match result.clone() {
                 Ok(_) => {
                     error_count = 0;
-                },
+                }
                 Err(x) => {
                     println!("Sync Error - {}, sleeping 15 seconds before next try.", x);
                     info!("Sync Error - {}", x);
@@ -1541,14 +1537,14 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             }
 
             if self.quiting.load(std::sync::atomic::Ordering::SeqCst) {
-                result = Ok(object!{"result" => "failed",
-                                    "reason" => "Sync interupted!"});
+                result = Ok(object! {"result" => "failed",
+                "reason" => "Sync interupted!"});
                 sync_complete = true;
             }
 
             if error_count > 10 {
-                result = Ok(object!{"result" => "failed",
-                                 "reason" => "Sync failed after 10 consecutive errors, please check the log!"});
+                result = Ok(object! {"result" => "failed",
+                "reason" => "Sync failed after 10 consecutive errors, please check the log!"});
                 sync_complete = true;
             }
         }
@@ -1559,13 +1555,13 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     //Interupt currently running sync
     pub async fn stop_sync(&self) -> Result<JsonValue, String> {
         //set sync interupt
-        self.quiting.store(true,std::sync::atomic::Ordering::SeqCst);
+        self.quiting.store(true, std::sync::atomic::Ordering::SeqCst);
 
         // Wait until lock has been released
         let _lock = self.sync_lock.lock().await;
 
         //Clear any previous sync interupt
-        self.quiting.store(false,std::sync::atomic::Ordering::SeqCst);
+        self.quiting.store(false, std::sync::atomic::Ordering::SeqCst);
 
         Ok(object! {
             "result" => "success"
@@ -1575,11 +1571,10 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
     /// Start syncing in batches with the max size, so we don't consume memory more than
     // wha twe can handle.
     async fn start_sync(&self, batch_size: u64) -> Result<JsonValue, String> {
-
         if self.quiting.load(std::sync::atomic::Ordering::SeqCst) {
             return Err("No batches were run!".to_string());
         }
-        
+
         // We can only do one sync at a time because we sync blocks in serial order
         // If we allow multiple syncs, they'll all get jumbled up.
         let _lock = self.sync_lock.lock().await;
@@ -1604,7 +1599,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
                 if latest_blockid.height == last_scanned_height {
                     if !latest_blockid.hash.is_empty()
-                        && BlockHash::from_slice(&latest_blockid.hash).to_string() != self.wallet.last_scanned_hash().await
+                        && BlockHash::from_slice(&latest_blockid.hash).to_string()
+                            != self.wallet.last_scanned_hash().await
                     {
                         warn!("One block reorg at height {}", last_scanned_height);
                         // This is a one-block reorg, so pop the last block. Even if there are more blocks to reorg, this is enough
@@ -1621,7 +1617,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 // Re-read the last scanned height
                 let last_scanned_height = self.wallet.last_scanned_height().await;
                 let sync_till_block = cmp::min(last_scanned_height + batch_size, latest_blockid.height);
-                let step = cmp::max(1, batch_size/10);
+                let step = cmp::max(1, batch_size / 10);
 
                 let mut latest_block_batches = vec![];
                 let mut prev = last_scanned_height;
@@ -1651,7 +1647,6 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                 }
                 // println!("Started new sync");
 
-
                 for (batch_num, batch_latest_block) in latest_block_batches.into_iter().enumerate() {
                     // println!("Starting batch {}", batch_num);
 
@@ -1663,8 +1658,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
                         self.do_save(false).await?;
                     }
                 }
-            },
-            Err(x) => res = Err(x)
+            }
+            Err(x) => res = Err(x),
         }
         res
     }
@@ -1916,30 +1911,22 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
 
         let secret_bytes = decode_base58_field("secret", secret, true)?;
         let privkey_bytes = decode_base58_field("privkey", privkey, false)?;
-        let sk = secp256k1::SecretKey::from_slice(&privkey_bytes)
-            .map_err(|e| format!("Invalid privkey: {}", e))?;
+        let sk = secp256k1::SecretKey::from_slice(&privkey_bytes).map_err(|e| format!("Invalid privkey: {}", e))?;
 
-        let lock_time =
-            u32::try_from(locktime).map_err(|_| "locktime is out of range".to_string())?;
-        let sequence = if lock_time > 0 {
-            0xFFFFFFFE
-        } else {
-            0xFFFFFFFF
-        };
+        let lock_time = u32::try_from(locktime).map_err(|_| "locktime is out of range".to_string())?;
+        let sequence = if lock_time > 0 { 0xFFFFFFFE } else { 0xFFFFFFFF };
 
         let latest_block = GrpcConnector::get_latest_block(self.get_server_uri()).await?;
-        let target_height = u32::try_from(latest_block.height)
-            .map_err(|_| "latest block height is out of range".to_string())?;
-        let branch_id =
-            BranchId::for_height(&self.config.get_params(), BlockHeight::from_u32(target_height));
+        let target_height =
+            u32::try_from(latest_block.height).map_err(|_| "latest block height is out of range".to_string())?;
+        let branch_id = BranchId::for_height(&self.config.get_params(), BlockHeight::from_u32(target_height));
         let tx_version = TxVersion::suggested_for_branch(branch_id);
         let expiry_height = BlockHeight::from_u32(target_height + 20);
 
         let mut txid_arr = [0u8; 32];
         txid_arr.copy_from_slice(&txid_bytes);
         let funding_txid = TxId::from_bytes(txid_arr);
-        let funding_raw_tx =
-            GrpcConnector::get_transaction(self.get_server_uri(), &funding_txid).await?;
+        let funding_raw_tx = GrpcConnector::get_transaction(self.get_server_uri(), &funding_txid).await?;
         let funding_tx = parse_raw_transaction(&self.config, &funding_raw_tx, target_height)?;
         let funding_bundle = funding_tx
             .transparent_bundle()
@@ -1961,10 +1948,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         for (addr, amt, memo) in outputs {
             let recipient = address::RecipientAddress::decode(&self.config.get_params(), addr)
                 .ok_or_else(|| format!("Invalid recipient address: '{}'", addr))?;
-            let value = Amount::from_u64(amt)
-                .map_err(|_| format!("Invalid amount for '{}'", addr))?;
-            outputs_total = (outputs_total + value)
-                .ok_or_else(|| "Invalid output amount total".to_string())?;
+            let value = Amount::from_u64(amt).map_err(|_| format!("Invalid amount for '{}'", addr))?;
+            outputs_total = (outputs_total + value).ok_or_else(|| "Invalid output amount total".to_string())?;
 
             match recipient {
                 address::RecipientAddress::Shielded(to) => {
@@ -1986,8 +1971,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             }
         }
 
-        let expected_total = (outputs_total + fee_amount)
-            .ok_or_else(|| "Invalid output total".to_string())?;
+        let expected_total = (outputs_total + fee_amount).ok_or_else(|| "Invalid output total".to_string())?;
 
         let outpoint = OutPoint::new(txid_arr, 0);
         if funding_value < expected_total {
@@ -2046,8 +2030,8 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             &txid_parts,
         );
 
-        let msg = secp256k1::Message::from_slice(sighash.as_ref())
-            .map_err(|e| format!("Invalid signature hash: {}", e))?;
+        let msg =
+            secp256k1::Message::from_slice(sighash.as_ref()).map_err(|e| format!("Invalid signature hash: {}", e))?;
         let secp = secp256k1::Secp256k1::signing_only();
         let sig = secp.sign_ecdsa(&msg, &sk);
         let mut sig_bytes = sig.serialize_der().to_vec();
@@ -2097,9 +2081,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
         tx.write(&mut raw_tx)
             .map_err(|e| format!("Error serializing transaction: {}", e))?;
 
-        let txid =
-            GrpcConnector::send_transaction(self.get_server_uri(), raw_tx.into_boxed_slice())
-                .await?;
+        let txid = GrpcConnector::send_transaction(self.get_server_uri(), raw_tx.into_boxed_slice()).await?;
 
         // Mark any wallet notes/utxos spent by this tx as unconfirmed.
         {
@@ -2108,11 +2090,7 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             if let Some(s_bundle) = tx.sapling_bundle() {
                 for spend in s_bundle.shielded_spends.iter() {
                     for wtx in txs.current.values_mut() {
-                        if let Some(note) = wtx
-                            .notes
-                            .iter_mut()
-                            .find(|nd| nd.nullifier == spend.nullifier)
-                        {
+                        if let Some(note) = wtx.notes.iter_mut().find(|nd| nd.nullifier == spend.nullifier) {
                             note.unconfirmed_spent = Some((txid_obj.clone(), target_height));
                             break;
                         }
@@ -2173,14 +2151,9 @@ impl<P: consensus::Parameters + Send + Sync + 'static> LightClient<P> {
             let prover = LocalTxProver::from_bytes(&self.sapling_spend, &self.sapling_output);
 
             self.wallet
-                .send_to_p2sh_with_redeem_script(
-                    prover,
-                    from,
-                    addrs,
-                    script_bytes,
-                    fee,
-                    |txbytes| GrpcConnector::send_transaction(self.get_server_uri(), txbytes),
-                )
+                .send_to_p2sh_with_redeem_script(prover, from, addrs, script_bytes, fee, |txbytes| {
+                    GrpcConnector::send_transaction(self.get_server_uri(), txbytes)
+                })
                 .await
         };
 

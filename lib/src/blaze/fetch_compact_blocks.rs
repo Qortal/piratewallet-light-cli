@@ -21,7 +21,7 @@ impl<P: consensus::Parameters> FetchCompactBlocks<P> {
         receivers: &[Sender<CompactBlock>; 2],
         start_block: u64,
         end_block: u64,
-        step: u64
+        step: u64,
     ) -> Result<(), String> {
         let grpc_client = Arc::new(GrpcConnector::new(self.config.server.clone()));
         //const STEP: u64 = 100;
@@ -56,12 +56,14 @@ impl<P: consensus::Parameters> FetchCompactBlocks<P> {
         }
 
         //info!("Starting fetch compact blocks");
-        self.fetch_blocks_range(&receivers, start_block, end_block, step).await?;
+        self.fetch_blocks_range(&receivers, start_block, end_block, step)
+            .await?;
 
         // After fetching all the normal blocks, we actually wait to see if any re-org'd blocks are recieved
         while let Some(Some(reorg_block)) = reorg_rx.recv().await {
             // Fetch the additional block.
-            self.fetch_blocks_range(&receivers, reorg_block, reorg_block, step).await?;
+            self.fetch_blocks_range(&receivers, reorg_block, reorg_block, step)
+                .await?;
         }
 
         //info!("Finished fetch compact blocks, closing channels");
