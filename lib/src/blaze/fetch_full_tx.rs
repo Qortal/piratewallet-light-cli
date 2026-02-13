@@ -1,10 +1,10 @@
 use crate::{
     lightclient::lightclient_config::LightClientConfig,
     lightwallet::{
-        LightWallet,
         data::OutgoingTxMetadata,
         keys::{Keys, ToBase58Check},
         wallet_txns::WalletTxns,
+        LightWallet,
     },
 };
 
@@ -271,14 +271,17 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
         }
 
         //Collect the z_addresses spent from this transaction
-        let mut z_addresses: HashSet<String>= HashSet::new();
-        let hrp: &str = config.hrp_sapling_address().clone();
+        let mut z_addresses: HashSet<String> = HashSet::new();
+        let hrp: &str = config.hrp_sapling_address();
         // Collect Sapling notes
         if let Some(s_bundle) = tx.sapling_bundle() {
             for s in s_bundle.shielded_spends.iter() {
-
-                wallet_txns.read().await.current.iter()
-                    .flat_map( |(_txid, wtx)| {
+                wallet_txns
+                    .read()
+                    .await
+                    .current
+                    .iter()
+                    .flat_map(|(_txid, wtx)| {
                         wtx.notes.iter().filter_map(move |nd| {
                             if nd.nullifier == s.nullifier {
                                 Some(LightWallet::<P>::note_address(hrp, nd))
@@ -287,10 +290,10 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                             }
                         })
                     })
-                    .for_each( |address| {
+                    .for_each(|address| {
                         match address {
                             Some(x) => z_addresses.insert(x),
-                            None => false
+                            None => false,
                         };
                     });
             }
@@ -319,7 +322,6 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
             .iter()
             .map(|k| k.fvk.vk.ivk())
             .collect();
-
 
         // Step 4: Scan shielded sapling outputs to see if anyone of them is us, and if it is, extract the memo. Note that if this
         // is invoked by a transparent transaction, and we have not seen this Tx from the trial_decryptions processor, the Note
@@ -362,9 +364,10 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                         }
                     }
                     if !found {
-                        keys.write().await.add_diversifier(extfvks.get(i).unwrap(), to.diversifier().clone(), da);
+                        keys.write()
+                            .await
+                            .add_diversifier(extfvks.get(i).unwrap(), to.diversifier().clone(), da);
                     }
-
                 }
 
                 // Also scan the output to see if it can be decoded with our OutgoingViewKey
@@ -372,30 +375,29 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                 // the memo and value for our records
 
                 for (i, ovk) in ovks.iter().enumerate() {
-
                     match try_sapling_output_recovery(&config.get_params(), height, &ovk, &output) {
                         Some((note, payment_address, memo_bytes)) => {
                             let address = encode_payment_address(config.hrp_sapling_address(), &payment_address);
 
                             let memo = match Memo::try_from(memo_bytes) {
                                 Err(_) => Memo::Empty,
-                                Ok(memotry) => memotry
+                                Ok(memotry) => memotry,
                             };
 
-                            let mut outgoing_meta = vec![];
-
-                            outgoing_meta.push(OutgoingTxMetadata {
-                                    address: address.clone(),
-                                    value: note.value,
-                                    memo: memo,
-                                    transparent: false,
-                                    index: i as u64});
+                            let outgoing_meta = vec![
+OutgoingTxMetadata {
+                                address: address.clone(),
+                                value: note.value,
+                                memo,
+                                transparent: false,
+                                index: i as u64,
+                            },
+];
 
                             wallet_txns
                                 .write()
                                 .await
                                 .add_outgoing_metadata(&tx.txid(), outgoing_meta);
-
                         }
                         None => (),
                     }
@@ -409,22 +411,20 @@ impl<P: consensus::Parameters + Send + Sync + 'static> FetchFullTxns<P> {
                 let taddr = keys.read().await.address_from_pubkeyhash(vout.script_pubkey.address());
 
                 if taddr.is_some() {
-
-                    let mut outgoing_meta = vec![];
-
-                    outgoing_meta.push(OutgoingTxMetadata {
+                    let outgoing_meta = vec![
+OutgoingTxMetadata {
                         address: taddr.unwrap(),
                         value: vout.value.into(),
                         memo: Memo::Empty,
                         transparent: true,
                         index: i as u64,
-                    });
+                    },
+];
 
                     wallet_txns
                         .write()
                         .await
                         .add_outgoing_metadata(&tx.txid(), outgoing_meta)
-
                 }
             }
         }

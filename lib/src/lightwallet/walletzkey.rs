@@ -26,9 +26,9 @@ pub enum WalletZKeyType {
 // A struct that holds diversified addresses
 #[derive(Clone, Debug, PartialEq)]
 pub struct WalletDiversifiers {
-  pub extfvk: ExtendedFullViewingKey,
-  pub diversifier: Diversifier,
-  pub zaddress: String,
+    pub extfvk: ExtendedFullViewingKey,
+    pub diversifier: Diversifier,
+    pub zaddress: String,
 }
 
 impl WalletDiversifiers {

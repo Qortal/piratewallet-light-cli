@@ -33,7 +33,7 @@ use super::{fixed_size_buffer::FixedSizeBuffer, sync_status::SyncStatus};
 
 pub struct TreeCache {
     height: u64,
-    tree: CommitmentTree<Node>
+    tree: CommitmentTree<Node>,
 }
 
 pub struct BlockAndWitnessData {
@@ -58,7 +58,7 @@ pub struct BlockAndWitnessData {
 
     sapling_activation_height: u64,
 
-    tree_cache: Arc<RwLock<Vec<TreeCache>>>
+    tree_cache: Arc<RwLock<Vec<TreeCache>>>,
 }
 
 impl BlockAndWitnessData {
@@ -84,11 +84,12 @@ impl BlockAndWitnessData {
     }
 
     pub async fn setup_sync(&mut self, existing_blocks: Vec<BlockData>, verified_tree: Option<TreeState>) {
-        if !existing_blocks.is_empty() {
-            if existing_blocks.first().unwrap().height < existing_blocks.last().unwrap().height {
-                panic!("Blocks are in wrong order");
-            }
+        if !existing_blocks.is_empty()
+            && existing_blocks.first().unwrap().height < existing_blocks.last().unwrap().height
+        {
+            panic!("Blocks are in wrong order");
         }
+
         self.verification_list.write().await.clear();
         self.verified_tree = verified_tree;
 
@@ -98,7 +99,6 @@ impl BlockAndWitnessData {
         self.existing_blocks.write().await.extend(existing_blocks);
 
         self.tree_cache.write().await.clear();
-
     }
 
     // Finish up the sync. This method will delete all the elements in the blocks, and return
@@ -456,7 +456,6 @@ impl BlockAndWitnessData {
             let tree = if prev_height < self.sapling_activation_height {
                 CommitmentTree::empty()
             } else {
-
                 let mut tree_cache = self.tree_cache.write().await;
                 let mut found = false;
                 let mut position = 0;
@@ -477,7 +476,7 @@ impl BlockAndWitnessData {
                     let tree_state = CommitmentTree::read(&sapling_tree[..]).map_err(|e| format!("{}", e))?;
                     let new_tree = TreeCache {
                         height: prev_height,
-                        tree: tree_state.clone()
+                        tree: tree_state.clone(),
                     };
 
                     tree_cache.push(new_tree);

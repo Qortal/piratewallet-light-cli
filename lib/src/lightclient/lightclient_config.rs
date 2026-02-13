@@ -23,8 +23,8 @@ use zcash_primitives::{
 use crate::{grpc_connector::GrpcConnector, lightclient::checkpoints};
 
 pub const DEFAULT_SERVER: &str = "https://lightd1.pirate.black:443";
-pub const WALLET_NAME: &str    = "arrr-light-wallet.dat";
-pub const LOGFILE_NAME: &str   = "debug-arrr-light-wallet.log";
+pub const WALLET_NAME: &str = "arrr-light-wallet.dat";
+pub const LOGFILE_NAME: &str = "debug-arrr-light-wallet.log";
 pub const ANCHOR_OFFSET: [u32; 5] = [4, 0, 0, 0, 0];
 pub const MAX_REORG: usize = 100;
 pub const GAP_RULE_UNUSED_ADDRESSES: usize = if cfg!(any(target_os = "ios", target_os = "android")) {
@@ -104,7 +104,6 @@ impl<P: consensus::Parameters> LightClientConfig<P> {
     }
 
     pub fn check_server(server_uri: String) -> bool {
-
         let s = Self::get_server_or_default(Some(server_uri));
 
         use std::net::ToSocketAddrs;

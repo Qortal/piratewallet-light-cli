@@ -1,11 +1,6 @@
 use zcash_primitives::legacy::Script;
 use zcash_primitives::transaction::{
-    components::{
-        amount::Amount,
-        orchard,
-        sapling,
-        transparent,
-    },
+    components::{amount::Amount, orchard, sapling, transparent},
     sighash::TransparentAuthorizingContext,
     Authorization as TxAuthorization,
 };

@@ -322,16 +322,14 @@ impl WalletTxns {
     // Check this transaction to see if it is an outgoing transaction, and if it is, mark all recieved notes in this
     // transction as change. i.e., If any funds were spent in this transaction, all recieved notes are change notes.
     pub fn check_notes_mark_change(&mut self, txid: &TxId, zaddrs: Vec<PaymentAddress>) {
-
         if self.total_funds_spent_in(txid) > 0 {
             self.current.get_mut(txid).map(|wtx| {
-                wtx.notes.iter_mut()
-                    .filter(|nd|
-                        zaddrs.contains(&nd.extfvk.fvk.vk.to_payment_address(nd.diversifier).unwrap())
-                     )
+                wtx.notes
+                    .iter_mut()
+                    .filter(|nd| zaddrs.contains(&nd.extfvk.fvk.vk.to_payment_address(nd.diversifier).unwrap()))
                     .for_each(|n| {
-                    n.is_change = true;
-                })
+                        n.is_change = true;
+                    })
             });
         }
     }
@@ -603,7 +601,6 @@ impl WalletTxns {
                 .collect();
 
             wtx.outgoing_metadata.extend(omd);
-
         } else {
             error!("TxId {} should be present while adding metadata, but wasn't", txid);
         }

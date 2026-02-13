@@ -66,10 +66,8 @@ impl Message {
         };
         let cv = value_commitment.commitment().into();
 
-        // Use a rseed from pre-canopy. It doesn't really matter, but this is what is tested out.
-        let mut rseed_bytes = [0u8; 32];
-        rng.fill_bytes(&mut rseed_bytes);
-        let rseed = Rseed::AfterZip212(rseed_bytes);
+        // Use a pre-zip212 rseed since Canopy is not active on the Pirate Network
+        let rseed = Rseed::BeforeZip212(jubjub::Fr::random(&mut rng));
 
         // 0-value note with the rseed
         let note = self.to.create_note(value, rseed).unwrap();
@@ -78,8 +76,10 @@ impl Message {
         // by the receiver, but it is needed to recover the note by the sender.
         let cmu = note.cmu();
 
-        // Create the note encrytion object
-        let ne = NoteEncryption::<SaplingDomain<zcash_primitives::consensus::Network>>::new(
+        // Generate esk and create the note encryption object using pre-zip-212 constructor
+        let esk = note.generate_or_derive_esk(&mut rng);
+        let ne = NoteEncryption::<SaplingDomain<zcash_primitives::consensus::Network>>::new_with_esk(
+            esk,
             ovk,
             note,
             self.to.clone(),
@@ -199,6 +199,7 @@ impl Message {
 
 #[cfg(test)]
 pub mod tests {
+    use ff::Field;
     use group::GroupEncoding;
     use rand::{rngs::OsRng, Rng, RngCore};
     use zcash_primitives::{
@@ -291,9 +292,7 @@ pub mod tests {
 
         // Create a new, random EPK
 
-        let mut rseed_bytes = [0u8; 32];
-        rng.fill_bytes(&mut rseed_bytes);
-        let rseed = Rseed::AfterZip212(rseed_bytes);
+        let rseed = Rseed::BeforeZip212(jubjub::Fr::random(&mut rng));
         let note = to.create_note(0, rseed).unwrap();
         let esk = note.generate_or_derive_esk(&mut rng);
         let epk_bad: jubjub::ExtendedPoint = (note.g_d * esk).into();
